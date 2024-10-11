@@ -1,0 +1,23 @@
+version: 0.0
+os: linux
+files:
+  - source: /
+    destination: /var/www/efflux-backend/
+
+hooks:
+  AfterInstall:
+    - location: deployment_scripts/after_install.sh
+      timeout: 500 # in seconds
+      runas: root
+  ApplicationStop:
+    - location: deployment_scripts/application_stop.sh
+      timeout: 500 # in seconds
+      runas: root
+  ApplicationStart:
+    - location: deployment_scripts/application_start.sh
+      timeout: 500 # in seconds
+      runas: root
+  BeforeInstall:
+    - location: deployment_scripts/before_install.sh
+      timeout: 500 # in seconds
+      runas: root
