@@ -1,0 +1,16 @@
+{
+  "name": "efflux-conversions-reporting-solution",
+  "version": "1.0.0",
+  "description": "Custom Conversion Reporting Solution (using CAPI)",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.21.1"
+  }
+}

@@ -13,6 +13,8 @@ Parameters:
 
 Resources:
 
+  # Connection with the S3 Bucket that will send signals to the queue
+  # ------------------------------------------------------------------------------------------------
   TriggerConversionReportingQueue:
     Type: AWS::SQS::Queue
     Properties:
@@ -55,7 +57,319 @@ Resources:
       Queues:
         - !Ref TriggerConversionReportingQueue
 
+  # The Compute Resources
+  # ------------------------------------------------------------------------------------------------
+
+  # A CloudWatch log group for the application
+  ConversionReportingLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/ec2/conversion-reporting
+      RetentionInDays: 30
+      Tags:
+        - Key: Name
+          Value: Conversion-Reporting
+        - Key: project
+          Value: efflux
+
+  # Notification Topic for the Conversion Reporting Instance
+  NotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Endpoint: !Ref OperatorEmail
+          Protocol: email
+      TopicName: Conversion-Reporting-ScalingNotification
+      Tags:
+        - Key: Name
+          Value: Conversion-Reporting-ScalingNotification
+        - Key: project
+          Value: efflux
+
+  # Auto Scaling Group for the Conversion Reporting Instance
+  ConversionReportingAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: Conversion-Reporting-ASG
+      LaunchTemplate:
+        LaunchTemplateId: !Ref ConversionReportingLaunchTemplate
+        Version: !GetAtt ConversionReportingLaunchTemplate.LatestVersionNumber
+      MaxSize: "3"
+      MinSize: "1"
+      DesiredCapacity: "1"
+      NotificationConfigurations:
+        - TopicARN: !Ref NotificationTopic
+          NotificationTypes:
+            [
+              "autoscaling:EC2_INSTANCE_LAUNCH",
+              "autoscaling:EC2_INSTANCE_LAUNCH_ERROR",
+              "autoscaling:EC2_INSTANCE_TERMINATE",
+              "autoscaling:EC2_INSTANCE_TERMINATE_ERROR",
+            ]
+      VPCZoneIdentifier:
+        - !ImportValue Efflux-PublicSubnet1
+        - !ImportValue Efflux-PublicSubnet2
+        - !ImportValue Efflux-PublicSubnet3
+      Tags:
+        - Key: Name
+          Value: Conversion-Reporting-Instance
+          PropagateAtLaunch: true
+        - Key: project
+          Value: efflux
+          PropagateAtLaunch: true
+
+  # Scaling Policy
+  ConversionReportingScalingPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref ConversionReportingAutoScalingGroup
+      ScalingAdjustment: "1"
+
+  # Launch Template for the Conversion Reporting Instance
+  ConversionReportingLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: Conversion-Reporting-Instance
+      LaunchTemplateData:
+        BlockDeviceMappings:
+          - DeviceName: /dev/sda1
+            Ebs:
+              VolumeSize: 33
+              VolumeType: gp3
+              DeleteOnTermination: yes
+              Encrypted: false
+        IamInstanceProfile:
+          Name: !Ref CodeDeployInstanceProfile
+        SecurityGroupIds:
+          - !Ref InstanceSecurityGroup
+        ImageId: ami-0fc5d935ebf8bc3bc # Ubuntu Server 22.04 LTS (HVM) SSD
+        KeyName: efflux-conversion-reporting-instance
+        InstanceType: t3a.small
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            # Update and install initial packages
+            sudo apt-get update && \
+            sudo apt-get upgrade -y && \
+            sudo apt-get install -y python3 ca-certificates curl gnupg curl htop wget zip memcached ruby && \
+            sudo mkdir -p /var/www/efflux-conversion-reporting-solution && \
+            sudo chown -R ubuntu:ubuntu /var/www/efflux-conversion-reporting-solution
+
+            # Install NodeJS
+            sudo mkdir -p /etc/apt/keyrings
+            curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+
+            NODE_MAJOR=20
+            echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" | sudo tee /etc/apt/sources.list.d/nodesource.list
+
+            sudo apt-get update
+            sudo apt-get install nodejs -y
+
+            # Install PM2
+            sudo npm install pm2@latest -g
+
+            # Install CodeDeploy Agent
+            cd /tmp && \
+            wget https://aws-codedeploy-us-east-1.s3.us-east-1.amazonaws.com/latest/install && \
+            sudo chmod +x ./install && \
+            sudo ./install auto && \
+            sudo service codedeploy-agent start
+            sudo service codedeploy-agent stop
+            sudo service codedeploy-agent start
+
+            # Add alias for pm2
+            echo "alias pm2='sudo pm2'" >> ~/.bashrc
+            echo "alias htop='sudo htop'" >> ~/.bashrc
+
+            # Add alias for quickly accessing the project directory
+            echo "alias efflux='cd /var/www/efflux-conversion-reporting-solution && ll'" >> ~/.bashrc
+            echo "alias logs='cd /var/www/efflux-conversion-reporting-solution && pm2 logs'" >> ~/.bashrc
+
+            # Add alias for quickly resetting the application
+            echo "alias reset='cd /var/www/efflux-conversion-reporting-solution && pm2 stop ecosystem.config.js && pm2 delete ecosystem.config.js &&  pm2 start ecosystem.config.js --env production && pm2 save && pm2 logs'" >> ~/.bashrc
+            echo "alias upup='sudo apt update && sudo apt upgrade -y && sudo apt-get autoremove -y && sudo apt-get autoclean -y'" >> ~/.bashrc
+            source ~/.bashrc
+
+            # Define environment
+            echo -e "CRON_ENVIRONMENT=production\nDATABASE_ENVIRONMENT=production\nLOGGING_ENVIRONMENT=production\nSTACK=Conversion-Reporting" | sudo tee /etc/profile.d/efflux-conversion-reporting.env > /dev/null
+
+        TagSpecifications:
+          - ResourceType: volume
+            Tags:
+              - Key: Name
+                Value: Conversion-Reporting-Instance Volume
+              - Key: project
+                Value: efflux
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: Conversion-Reporting-Instance
+              - Key: project
+                Value: efflux
+
+  # Creating Security Group for EC2 Instances
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: Conversion-Reporting-Instance
+      GroupDescription: Enable SSH access via port 22
+      VpcId: !ImportValue Efflux-VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 3500
+          ToPort: 3500
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 5000
+          ToPort: 5000
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: Conversion-Reporting-Instance
+        - Key: project
+          Value: efflux
+
+  # Create CodeDeploy Instance Profile
+  CodeDeployInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+        - !Ref CodeDeployServiceRole
+      InstanceProfileName: Conversion-Reporting-InstanceProfile
+
+  # Create CodeDeploy Service Role
+  CodeDeployServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codedeploy.amazonaws.com
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: CodeDeployServiceRolePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - autoscaling:*
+                  - ec2:Describe*
+                  - elasticloadbalancing:*
+                  - s3:*
+                  - iam:PassRole
+                  - sns:*
+                  - sqs:*
+                  - dynamodb:*
+                  - logs:*
+                  - cloudwatch:*
+                  - cloudformation:*
+                  - codedeploy:*
+                  - secretsmanager:GetSecretValue
+                  - ssm:GetParameter*
+                Resource: "*"
+
+  # The Deployment Resources
+  # ------------------------------------------------------------------------------------------------
+
+  # Create CodeDeploy Application
+  CodeDeployApplication:
+    Type: AWS::CodeDeploy::Application
+    Properties:
+      ApplicationName: Efflux-Conversion-Reporting
+      ComputePlatform: Server
+      Tags:
+        - Key: Name
+          Value: Efflux-Conversion-Reporting
+        - Key: project
+          Value: efflux
+
+  # Create CodeDeploy Deployment Group
+  CodeDeployDeploymentGroup:
+    Type: AWS::CodeDeploy::DeploymentGroup
+    Properties:
+      ApplicationName: !Ref CodeDeployApplication
+      DeploymentGroupName: Conversion-Reporting
+      DeploymentConfigName: CodeDeployDefault.OneAtATime
+      ServiceRoleArn: !GetAtt CodeDeployServiceRole.Arn
+      DeploymentStyle:
+        DeploymentOption: WITHOUT_TRAFFIC_CONTROL
+        DeploymentType: IN_PLACE
+      Ec2TagFilters:
+        - Key: Name
+          Type: KEY_AND_VALUE
+          Value: Conversion-Reporting-Instance
+      TriggerConfigurations:
+        - TriggerEvents:
+            - DeploymentFailure
+          TriggerName: Conversion-Reporting-DeploymentTrigger
+          TriggerTargetArn: !Ref NotificationTopic
+      Tags:
+        - Key: Name
+          Value: Conversion-Reporting-DeploymentGroup
+        - Key: project
+          Value: efflux
+
+  # Create CodeDeploy Service Role
+  CodeDeployServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codedeploy.amazonaws.com
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: CodeDeployServiceRolePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - autoscaling:*
+                  - ec2:Describe*
+                  - elasticloadbalancing:*
+                  - s3:*
+                  - iam:PassRole
+                  - sns:*
+                  - sqs:*
+                  - dynamodb:*
+                  - logs:*
+                  - cloudwatch:*
+                  - cloudformation:*
+                  - codedeploy:*
+                  - secretsmanager:GetSecretValue
+                  - ssm:GetParameter*
+                Resource: "*"
+
 Outputs:
+
   TriggerConversionReportingQueueArn:
     Description: The ARN of the SQS queue
     Value: !GetAtt TriggerConversionReportingQueue.Arn

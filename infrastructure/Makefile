@@ -5,15 +5,17 @@ AWS_PROFILE ?= new-efflux
 STACK_NAME ?= efflux-conversions-reporting-solution
 
 deploy-prod:
-	@aws cloudformation deploy \
-		--stack-name $(STACK_NAME) \
-		--capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM  \
+	@echo "Deploying stack using SAM"
+	@sam deploy \
+		--no-confirm-changeset \
 		--template-file template.yaml \
-    --parameter-overrides \
-			OperatorEmail=deni@roi.ad \
-		--tags project=efflux \
+		--stack-name $(STACK_NAME) \
+		--region $(AWS_REGION) \
 		--profile $(AWS_PROFILE) \
-		--region $(AWS_REGION)
+		--capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM  \
+		--parameter-overrides \
+			OperatorEmail=deni@roi.ad \
+		--tags project=efflux 
 
 destroy-stack:
 	@echo "Destroying stack using SAM"
