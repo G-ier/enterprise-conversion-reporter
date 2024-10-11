@@ -1,0 +1,75 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+
+####################
+# Parameters
+####################
+
+Parameters:
+  OperatorEmail:
+    Description: The email address to notify when there are any scaling activities
+    Type: String
+    Default: deni@roi.ad
+
+Resources:
+
+  TriggerConversionReportingQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: trigger-conversion-reporting
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TriggerConversionReportingDLQ.Arn
+        maxReceiveCount: 3
+      Tags:
+        - Key: project
+          Value: efflux
+        - Key: component
+          Value: conversion-reporting-solution
+
+  TriggerConversionReportingDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: trigger-conversion-reporting-dlq
+      Tags:
+        - Key: project
+          Value: efflux
+        - Key: component
+          Value: conversion-reporting-solution
+ 
+  # Allow RawAPIEventsBucket to send notifications to the SQS Queue
+  InterpretationEventsS3BucketPolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: s3.amazonaws.com
+            Action:
+              - sqs:* # Allow all actions
+            Resource: !GetAtt TriggerConversionReportingQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !ImportValue Interpreted-Events-Bucket-ARN
+      Queues:
+        - !Ref TriggerConversionReportingQueue
+
+Outputs:
+  TriggerConversionReportingQueueArn:
+    Description: The ARN of the SQS queue
+    Value: !GetAtt TriggerConversionReportingQueue.Arn
+    Export:
+      Name: TriggerConversionReportingQueueArn
+
+  TriggerConversionReportingQueueUrl:
+    Description: The URL of the SQS queue
+    Value: !Ref TriggerConversionReportingQueue
+    Export:
+      Name: TriggerConversionReportingQueueUrl
+
+  TriggerConversionQueue:
+    Description: The SQS queue for conversion reporting
+    Value: !Ref TriggerConversionReportingQueue
+    Export:
+      Name: TriggerConversionQueue
