@@ -10,7 +10,7 @@ then
     ENV=production
 fi
 
-cd /var/www/efflux-conversion-reporting-solution
+cd /var/www/efflux-conversion-reporting
 
 if [ -f "ecosystem.config.js" ]
 then

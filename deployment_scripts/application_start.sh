@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd /var/www/efflux-conversion-reporting-solution
+cd /var/www/efflux-conversion-reporting
 
 # get the environment from the environment variable passed from the CodePipeline
 # this will be either staging, production, cronus_staging or cronus_production

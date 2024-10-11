@@ -153,8 +153,8 @@ Resources:
             sudo apt-get update && \
             sudo apt-get upgrade -y && \
             sudo apt-get install -y python3 ca-certificates curl gnupg curl htop wget zip memcached ruby && \
-            sudo mkdir -p /var/www/efflux-conversion-reporting-solution && \
-            sudo chown -R ubuntu:ubuntu /var/www/efflux-conversion-reporting-solution
+            sudo mkdir -p /var/www/efflux-conversion-reporting && \
+            sudo chown -R ubuntu:ubuntu /var/www/efflux-conversion-reporting
 
             # Install NodeJS
             sudo mkdir -p /etc/apt/keyrings
@@ -183,11 +183,11 @@ Resources:
             echo "alias htop='sudo htop'" >> ~/.bashrc
 
             # Add alias for quickly accessing the project directory
-            echo "alias efflux='cd /var/www/efflux-conversion-reporting-solution && ll'" >> ~/.bashrc
-            echo "alias logs='cd /var/www/efflux-conversion-reporting-solution && pm2 logs'" >> ~/.bashrc
+            echo "alias efflux='cd /var/www/efflux-conversion-reporting && ll'" >> ~/.bashrc
+            echo "alias logs='cd /var/www/efflux-conversion-reporting && pm2 logs'" >> ~/.bashrc
 
             # Add alias for quickly resetting the application
-            echo "alias reset='cd /var/www/efflux-conversion-reporting-solution && pm2 stop ecosystem.config.js && pm2 delete ecosystem.config.js &&  pm2 start ecosystem.config.js --env production && pm2 save && pm2 logs'" >> ~/.bashrc
+            echo "alias reset='cd /var/www/efflux-conversion-reporting && pm2 stop ecosystem.config.js && pm2 delete ecosystem.config.js &&  pm2 start ecosystem.config.js --env production && pm2 save && pm2 logs'" >> ~/.bashrc
             echo "alias upup='sudo apt update && sudo apt upgrade -y && sudo apt-get autoremove -y && sudo apt-get autoclean -y'" >> ~/.bashrc
             source ~/.bashrc
 
