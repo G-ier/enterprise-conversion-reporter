@@ -12,7 +12,9 @@ then
     ENV=production
 fi
 
-pm2 start ecosystem.config.js --env $ENV
+if [ -f ecosystem.config.js ]; then
+    pm2 start ecosystem.config.js --env $ENV
 
-# Save the current process list so that it can be restored on reboot
-pm2 save
+    # Save the current process list so that it can be restored on reboot
+    pm2 save
+fi

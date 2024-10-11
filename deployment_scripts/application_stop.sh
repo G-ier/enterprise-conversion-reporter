@@ -17,5 +17,4 @@ then
   pm2 stop ecosystem.config.js --env $ENV
 else
     echo "ecosystem.config.js does not exist"
-    exit 1
 fi
