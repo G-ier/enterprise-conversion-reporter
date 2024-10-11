@@ -1,3 +1,3 @@
 #!/bin/bash
 
-rm -Rf /var/www/efflux-conversion-reporting/*
+rm -Rf /var/www/efflux-conversion-reporting-solution/*
