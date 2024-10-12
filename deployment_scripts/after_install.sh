@@ -1,5 +1,8 @@
 #!/bin/bash
 
 cd /var/www/efflux-conversion-reporting
-rm -f package-lock.json
+if [ -f package-lock.json ]
+then
+    rm -f package-lock.json
+fi
 npm install
