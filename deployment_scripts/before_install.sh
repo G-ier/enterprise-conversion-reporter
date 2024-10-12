@@ -1,3 +1,3 @@
 #!/bin/bash
 
-echo "Before install script"
+rm -Rf /var/www/efflux-conversion-reporting/*

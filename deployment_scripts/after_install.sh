@@ -1,3 +1,5 @@
 #!/bin/bash
 
-echo "After install"
+cd /var/www/efflux-conversion-reporting
+rm -f package-lock.json
+npm install
