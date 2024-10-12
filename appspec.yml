@@ -2,7 +2,7 @@ version: 0.0
 os: linux
 files:
   - source: /
-    destination: /var/www/efflux-backend/
+    destination: /var/www/efflux-conversion-reporting/
 
 hooks:
   AfterInstall:
