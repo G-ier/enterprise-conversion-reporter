@@ -128,8 +128,6 @@ class EnvironmentVariablesManager {
         await this.retrieveParameter(parameterName);
       }
     }
-
-    console.log(JSON.stringify(this.cachedValues, null, 2));
     EnvironmentVariablesManager.initialized = true;
   }
 
