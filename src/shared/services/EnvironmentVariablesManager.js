@@ -121,12 +121,47 @@ class EnvironmentVariablesManager {
         this.cachedValues[secretName] = this.cacheValue(process.env[secretName]);
       }
     } else {
-      for (const secretName of EnvironmentVariablesManager.secrets) {
-        await this.retrieveSecret(secretName);
-      }
-      for (const parameterName of EnvironmentVariablesManager.parameters) {
-        await this.retrieveParameter(parameterName);
-      }
+
+        const requiredEnvVariables = ["LOGGING_ENVIRONMENT", "STACK"];
+
+        // Overwriting the env variables with the ones from the file
+        const dotenv = require("dotenv");
+        let envFilePath;
+        if (os.platform() === 'win32') {
+          envFilePath = "C:\\Program Files\\efflux-conversion-reporting.env";
+        } else if (os.platform() === 'linux') {
+          envFilePath = "/etc/profile.d/efflux-conversion-reporting.env";
+        } else if (os.platform() === 'darwin') {
+          envFilePath = "/etc/efflux-conversion-reporting.env";
+        }
+
+        const fileExists = fs.existsSync(envFilePath);
+        const fileContent = fileExists ? fs.readFileSync(envFilePath, "utf8").trim() : "";
+        const envConfig = fileContent ? dotenv.parse(fileContent) : {};
+
+        const missingVariables = requiredEnvVariables.filter((key) => !envConfig[key]);
+        // Throw an error if any of the required env variables are missing
+        if (missingVariables.length > 0) {
+            throw new Error(`
+                Missing required environment variables: ${missingVariables.join(", ")}.
+                Please ensure it's/they are set in ${envFilePath}.
+
+                Example:
+                LOGGING_ENVIRONMENT=production
+                STACK=CR
+            `);
+        }
+
+        for (const [key, value] of Object.entries(envConfig)) {
+            this.cachedValues[key] = value;
+        }
+
+        for (const secretName of EnvironmentVariablesManager.secrets) {
+            await this.retrieveSecret(secretName);
+        }
+        for (const parameterName of EnvironmentVariablesManager.parameters) {
+            await this.retrieveParameter(parameterName);
+        }
     }
     EnvironmentVariablesManager.initialized = true;
   }

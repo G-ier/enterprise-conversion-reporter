@@ -192,7 +192,7 @@ Resources:
             source ~/.bashrc
 
             # Define environment
-            echo -e "CRON_ENVIRONMENT=production\nDATABASE_ENVIRONMENT=production\nLOGGING_ENVIRONMENT=production\nSTACK=Conversion-Reporting" | sudo tee /etc/profile.d/efflux-conversion-reporting.env > /dev/null
+            echo -e "LOGGING_ENVIRONMENT=production\nSTACK=CR" | sudo tee /etc/profile.d/efflux-conversion-reporting.env > /dev/null
 
         TagSpecifications:
           - ResourceType: volume
