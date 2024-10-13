@@ -106,7 +106,7 @@ const streamDestination =
   EnvironmentVariablesManager.getEnvVariable("LOGGING_ENVIRONMENT") === "production" ? "cloudwatch" : "console";
 
 const loggingEnv = EnvironmentVariablesManager.getEnvVariable("LOGGING_ENVIRONMENT");
-const logGroupName = "/aws/ec2/efflux-cronux"
+const logGroupName = "/aws/ec2/conversion-reporting" + (loggingEnv !== "production" ? "-" + loggingEnv : "");
 
 // Server Logger
 const ServerLogger = new CustomLogger({
