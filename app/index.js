@@ -32,6 +32,32 @@ const initPollingForConversionReportsTrigger = async () => {
   TriggerConversionReportsQueueLogger.info("Polling for conversion reports trigger started");
 };
 
+const initPollingForConversionReporting = async () => {
+  // If polling is disabled, return
+  if (EnvironmentVariablesManager.getEnvVariable("DISABLE_POLLING_FOR_CONVERSION_REPORTING") === "true") {
+    return;
+  }
+
+  // Initialize dependencies
+  const SQSService = require("../src/shared/lib/SQSService");
+  const QueuePoller = require("../src/shared/services/QueuePoller");
+  const ConversionsFilter = require("../src/core/conversionReporter/ConversionsFilter");
+  const { ReportConversionsQueueLogger } = require("../src/shared/lib/WinstonLogger");
+
+  // Initialize SQS service and queue poller
+  const reportConversionsQueueUrl = EnvironmentVariablesManager.getEnvVariable("REPORT_CONVERSIONS_QUEUE_URL");
+  const reportConversionsSQSService = new SQSService(reportConversionsQueueUrl);
+  const conversionsFilter = new ConversionsFilter();
+  const reportConversionsQueuePoller = new QueuePoller(reportConversionsSQSService, async (message) => {
+    console.log('🚀 Received message from Report Conversions Queue: Ready to report conversions');
+  });
+
+  // Start polling
+  reportConversionsQueuePoller.poll();
+
+  ReportConversionsQueueLogger.info("Polling for conversion reporting started");
+};
+
 // Initialize API
 const initializeServer = async () => {
 
@@ -46,8 +72,9 @@ const initializeServer = async () => {
     res.send("The world is yours!");
   });
 
-  // Initialize polling for conversion reports trigger
-  initPollingForConversionReportsTrigger();  
+  // Initialize polling for both queues
+  initPollingForConversionReportsTrigger();
+  initPollingForConversionReporting();
 
   // Start server
   const port = EnvironmentVariablesManager.getEnvVariable("PORT") || 5000;
@@ -57,7 +84,9 @@ const initializeServer = async () => {
     const loggingEnvironment = EnvironmentVariablesManager.getEnvVariable("LOGGING_ENVIRONMENT");
     const logLevel = EnvironmentVariablesManager.getEnvVariable("LOG_LEVEL");
     const triggerConversionReportsQueueUrl = EnvironmentVariablesManager.getEnvVariable("TRIGGER_CONVERSION_REPORTS_QUEUE_URL");
+    const reportConversionsQueueUrl = EnvironmentVariablesManager.getEnvVariable("REPORT_CONVERSIONS_QUEUE_URL");
     const disablePollingForConversionReportsTrigger = EnvironmentVariablesManager.getEnvVariable("DISABLE_POLLING_FOR_CONVERSION_REPORTS_TRIGGER");
+    const disablePollingForConversionReporting = EnvironmentVariablesManager.getEnvVariable("DISABLE_POLLING_FOR_CONVERSION_REPORTING");
 
     ServerLogger.info(`
 
@@ -72,6 +101,10 @@ const initializeServer = async () => {
       Trigger Conversion Reports Queue:
         URL: ${triggerConversionReportsQueueUrl} 
         Polling: ${disablePollingForConversionReportsTrigger === "true" ? "❌ Disabled" : "✅ Enabled"}
+
+      Report Conversions Queue:
+        URL: ${reportConversionsQueueUrl}
+        Polling: ${disablePollingForConversionReporting === "true" ? "❌ Disabled" : "✅ Enabled"}
     `);
   });
 }

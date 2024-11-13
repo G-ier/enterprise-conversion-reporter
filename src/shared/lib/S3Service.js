@@ -27,6 +27,7 @@ class S3Service {
     const hour = timestamp.getUTCHours();
     const dataSeggregationExtension = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}/${hour}`;
 
+    console.log('✅ Bucket name:', bucketName);
     console.log('✅ Folder name:', folderName);
     console.log('✅ Final Key:', `${folderName}/${dataSeggregationExtension}/${filename}.json`);
     console.log('✅ Content type:', contentType);

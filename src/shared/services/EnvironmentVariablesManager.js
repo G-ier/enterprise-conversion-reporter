@@ -11,7 +11,8 @@ class EnvironmentVariablesManager {
   static secrets = [
 
     // SQS
-    "TRIGGER_CONVERSION_REPORTS_QUEUE_URL"
+    "TRIGGER_CONVERSION_REPORTS_QUEUE_URL",
+    "REPORT_CONVERSIONS_QUEUE_URL"
 
   ];
 
@@ -24,7 +25,8 @@ class EnvironmentVariablesManager {
     "LOG_LEVEL",
 
     // Polling
-    "DISABLE_POLLING_FOR_CONVERSION_REPORTS_TRIGGER"
+    "DISABLE_POLLING_FOR_CONVERSION_REPORTS_TRIGGER",
+    "DISABLE_POLLING_FOR_CONVERSION_REPORTING"
   ];
 
   get isInitialized() {
