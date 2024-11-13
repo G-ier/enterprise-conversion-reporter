@@ -12,22 +12,21 @@ class ConversionsFilter {
     constructor() {}
 
     interpretSourceString(sourceString) {
-        const [moduleGroup, source, sourceType, jobKey, accountName, date, hour, filename] = sourceString.split("/");
+        const [moduleGroup, source, jobKey, accountName, date, hour, filename] = sourceString.split("/");
         const received_at = filename.split(".")[0];
         ConversionReporterLogger.info(`Message Received:
 
         ----------------------------------------------------
         Module Group: ${moduleGroup}
         Source: ${source}
-        Data Type: ${sourceType}
+        Job Key: ${jobKey}
+        Account Name: ${accountName}
         Filename: ${filename}
         Received At: ${received_at}
-        Job Id: ${jobKey}
-        Account Name: ${accountName}
         ----------------------------------------------------
 
         `);
-        return [moduleGroup, source, sourceType, jobKey, accountName, date, hour, filename, received_at];
+        return [moduleGroup, source, jobKey, accountName, date, hour, filename, received_at];
     }
 
     async processQueueMessage(message) {
@@ -39,10 +38,8 @@ class ConversionsFilter {
             // Step 2: Process each data in the message
             for (const record of body.Records) {
                 
-                console.log('✅ Record:', record);
-
                 // Step 2.1: Extract the S3 key from the record
-                const decodedS3Key = extractS3Key(record.s3.object.key);
+                const decodedS3Key = extractS3Key(record);
                 ConversionReporterLogger.info(`✅ Decoded S3 key: ${decodedS3Key}`);
 
                 // Step 2.2: Read the data from S3 & parse it to a list.
@@ -52,10 +49,10 @@ class ConversionsFilter {
                 );
                 
                 // Step 2.2.1: Interpret the source string
-                // const [moduleGroup, source, sourceType, jobKey, accountName, date, hour, filename, received_at] = this.interpretSourceString(decodedS3Key);
+                const [moduleGroup, source, jobKey, accountName, date, hour, filename, received_at] = this.interpretSourceString(decodedS3Key);
 
                 // Step 2.3: Log the parsed objects
-                ConversionReporterLogger.info(`✅ Parsed objects: ${JSON.stringify(parsedObjects, null, 2)}`);
+                ConversionReporterLogger.info(`✅ Received ${parsedObjects[0].length} objects from S3`);
             };
         } catch (error) {            
             console.error('❌ Error processing queue message:', error);

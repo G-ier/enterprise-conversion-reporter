@@ -5,7 +5,7 @@ const s3Service = require('./src/shared/lib/S3Service');
 async function uploadJsonToS3() {
     try {
         // 1. Read the JSON file
-        const defaultFilename = 'testSamples/testFile.json';
+        const defaultFilename = '/testSamples/testFile.json';
         const inputFilename = process.argv[2] || defaultFilename;
         const filePath = path.join(__dirname, inputFilename);
         const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
