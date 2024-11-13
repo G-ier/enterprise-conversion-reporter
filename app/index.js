@@ -15,13 +15,15 @@ const initPollingForConversionReportsTrigger = async () => {
   // Initialize dependencies
   const SQSService = require("../src/shared/lib/SQSService");
   const QueuePoller = require("../src/shared/services/QueuePoller");
+  const ConversionsFilter = require("../src/core/conversionReporter/ConversionsFilter");
   const { TriggerConversionReportsQueueLogger } = require("../src/shared/lib/WinstonLogger");
 
   // Initialize SQS service and queue poller
   const triggerConversionReportsQueueUrl = EnvironmentVariablesManager.getEnvVariable("TRIGGER_CONVERSION_REPORTS_QUEUE_URL");
   const triggerConversionReportsSQSService = new SQSService(triggerConversionReportsQueueUrl);
+  const conversionsFilter = new ConversionsFilter();
   const triggerConversionReportsQueuePoller = new QueuePoller(triggerConversionReportsSQSService, async (message) => {
-    TriggerConversionReportsQueueLogger.info(`Received message from trigger conversion reports queue: ${JSON.stringify(message)}`);
+    await conversionsFilter.processQueueMessage(message);
   });
 
   // Start polling
