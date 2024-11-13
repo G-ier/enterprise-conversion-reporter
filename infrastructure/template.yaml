@@ -57,6 +57,85 @@ Resources:
       Queues:
         - !Ref TriggerConversionReportingQueue
 
+  # Intra Orchestrator Resources
+  # ------------------------------------------------------------------------------------------------
+  ConversionReportingSubscriptionTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: conversion-reporting-subscriptions
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+      Tags:
+        - Key: project
+          Value: efflux
+        - Key: component
+          Value: conversion-reporting-solution
+  
+  ReportConversionsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: report-conversions-bucket
+      AccessControl: AwsExecRead
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerPreferred
+      NotificationConfiguration:
+        QueueConfigurations:
+          - Event: s3:ObjectCreated:*
+            Queue: !GetAtt ReportConversionsQueue.Arn
+      Tags:
+        - Key: project
+          Value: efflux
+        - Key: component
+          Value: conversion-reporting-solution
+
+  ReportConversionsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: report-conversions-queue
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ReportConversionsDLQ.Arn
+        maxReceiveCount: 3
+      Tags:
+        - Key: project
+          Value: efflux
+        - Key: component
+          Value: conversion-reporting-solution
+
+  ReportConversionsDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: report-conversions-dlq
+      Tags:
+        - Key: project
+          Value: efflux
+        - Key: component
+          Value: conversion-reporting-solution
+ 
+  # Allow ReportConversionsBucket to send notifications to the SQS Queue
+  ReportConversionsBucketPolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: s3.amazonaws.com
+            Action:
+              - sqs:* # Allow all actions
+            Resource: !GetAtt ReportConversionsQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt ReportConversionsBucket.Arn
+      Queues:
+        - !Ref ReportConversionsQueue
+
   # The Compute Resources
   # ------------------------------------------------------------------------------------------------
 
