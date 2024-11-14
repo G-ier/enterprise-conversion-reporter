@@ -1,5 +1,5 @@
 const S3Service = require('../../shared/lib/S3Service');
-// const ClickHouseService = require('../../shared/lib/ClickHouseService');
+const ClickHouseService = require('../../shared/lib/ClickHouseService');
 // const FacebookService = require('./services/FacebookService');
 const { ConversionReporterLogger } = require('../../shared/utils/logger');
 const { MetricsCollector } = require('../../shared/utils/monitoring');
