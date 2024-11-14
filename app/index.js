@@ -15,15 +15,15 @@ const initPollingForConversionReportsTrigger = async () => {
   // Initialize dependencies
   const SQSService = require("../src/shared/lib/SQSService");
   const QueuePoller = require("../src/shared/services/QueuePoller");
-  const ConversionsFilter = require("../src/core/conversionReporter/ConversionsFilter");
-  const { TriggerConversionReportsQueueLogger } = require("../src/shared/lib/WinstonLogger");
+  const CampaignFilter = require("../src/modules/campaignFilter/CampaignFilter");
+  const { TriggerConversionReportsQueueLogger } = require("../src/shared/utils/logger");
 
   // Initialize SQS service and queue poller
   const triggerConversionReportsQueueUrl = EnvironmentVariablesManager.getEnvVariable("TRIGGER_CONVERSION_REPORTS_QUEUE_URL");
   const triggerConversionReportsSQSService = new SQSService(triggerConversionReportsQueueUrl);
-  const conversionsFilter = new ConversionsFilter();
+  const campaignsFilter = new CampaignFilter();
   const triggerConversionReportsQueuePoller = new QueuePoller(triggerConversionReportsSQSService, async (message) => {
-    await conversionsFilter.processQueueMessage(message);
+    await campaignsFilter.processQueueMessage(message);
   });
 
   // Start polling
@@ -41,15 +41,15 @@ const initPollingForConversionReporting = async () => {
   // Initialize dependencies
   const SQSService = require("../src/shared/lib/SQSService");
   const QueuePoller = require("../src/shared/services/QueuePoller");
-  const ConversionsFilter = require("../src/core/conversionReporter/ConversionsFilter");
-  const { ReportConversionsQueueLogger } = require("../src/shared/lib/WinstonLogger");
+  const ConversionReporter = require("../src/modules/conversionReporter/ConversionReporter");
+  const { ReportConversionsQueueLogger } = require("../src/shared/utils/logger");
 
   // Initialize SQS service and queue poller
   const reportConversionsQueueUrl = EnvironmentVariablesManager.getEnvVariable("REPORT_CONVERSIONS_QUEUE_URL");
   const reportConversionsSQSService = new SQSService(reportConversionsQueueUrl);
-  const conversionsFilter = new ConversionsFilter();
+  const conversionReporter = new ConversionReporter();
   const reportConversionsQueuePoller = new QueuePoller(reportConversionsSQSService, async (message) => {
-    console.log('🚀 Received message from Report Conversions Queue: Ready to report conversions');
+    await conversionReporter.processQueueMessage(message);
   });
 
   // Start polling
@@ -63,7 +63,7 @@ const initializeServer = async () => {
 
   // Retrieve environment variables
   await EnvironmentVariablesManager.init(); 
-  const { ServerLogger } = require("../src/shared/lib/WinstonLogger");
+  const { ServerLogger } = require("../src/shared/utils/logger");
   ServerLogger.info("Environment variables initialized");
 
   // Initialize server
