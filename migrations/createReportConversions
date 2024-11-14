@@ -1,0 +1,42 @@
+CREATE TABLE report_conversions
+(
+    -- Date & Time
+    click_timestamp DateTime64(3, 'UTC'),
+    received_at DateTime64(3, 'UTC') DEFAULT now64(3),
+
+    -- Network Data
+    network String,
+    nw_account_id String,
+    nw_account_name String,
+    nw_campaign_id String,
+    nw_campaign_name String,
+
+    -- Traffic Source Data
+    traffic_source String,
+    pixel_id String,
+    campaign_id String,
+    campaign_name String,
+    adset_id String,
+    adset_name String,
+    ad_id String,
+    ad_name String,
+
+    -- User Data
+    session_id String,
+    user_agent String,
+    ip String,
+    country_code String,
+    region String,
+    city String,
+    ts_click_id String,
+
+    -- Conversion Data
+    conversions UInt32,
+    revenue Decimal64(4),
+    keyword_clicked String,
+    reported_conversions UInt32,
+    reported_amount Decimal64(4),
+    valid Boolean
+)
+ENGINE = MergeTree()
+ORDER BY (click_timestamp);
