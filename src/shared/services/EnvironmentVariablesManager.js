@@ -15,7 +15,10 @@ class EnvironmentVariablesManager {
     "REPORT_CONVERSIONS_QUEUE_URL",
 
     // Clickhouse
-    "CLICKHOUSE_URL"
+    "CLICKHOUSE_URL",
+
+    // Database
+    "DATABASE_URL",
 
   ];
 
