@@ -77,7 +77,7 @@ class CampaignFilter {
                 'interpreted-events-bucket',
                 s3Key
             );
-            return parsedObjectsList[0];
+            return parsedObjectsList.length > 0 ? parsedObjectsList[0] : [];
         } finally {
             timer.end();
         }
