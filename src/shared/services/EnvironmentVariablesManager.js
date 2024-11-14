@@ -12,7 +12,10 @@ class EnvironmentVariablesManager {
 
     // SQS
     "TRIGGER_CONVERSION_REPORTS_QUEUE_URL",
-    "REPORT_CONVERSIONS_QUEUE_URL"
+    "REPORT_CONVERSIONS_QUEUE_URL",
+
+    // Clickhouse
+    "CLICKHOUSE_URL"
 
   ];
 
