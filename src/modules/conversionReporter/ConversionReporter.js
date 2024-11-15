@@ -38,21 +38,33 @@ class ConversionReporter {
             const newConversions = await this.filterConversions(conversions);
             ConversionReporterLogger.info(`✅ New conversions: ${newConversions.length} records`);
 
-            // Filter valid conversions
-            const validConversions = newConversions.filter(conversion => conversion.valid);
-            const invalidConversions = newConversions.filter(conversion => !conversion.valid);
-            ConversionReporterLogger.info(`❌ Invalid conversions: ${invalidConversions.length} records`);
-
             if (newConversions.length > 0) {
 
-                await Promise.all([
+                // Filter valid and invalid conversions
+                const validConversions = newConversions.filter(conversion => conversion.valid);
+                const invalidConversions = newConversions.filter(conversion => !conversion.valid);
+                ConversionReporterLogger.info(`❌ Invalid conversions: ${invalidConversions.length} records`);
 
-                    // Save all conversions to ClickHouse
-                    this.reportToClickHouse(newConversions),
+                let successfullyReportedConversions = [];
+                let failedConversions = [];
 
+                if (validConversions.length > 0) {
                     // Report only the valid ones to Facebook
-                    this.reportToFacebook(validConversions)
-                    
+                    const facebookReportResults = await this.reportToFacebook(validConversions);
+                    successfullyReportedConversions = facebookReportResults.successes;
+                    failedConversions = facebookReportResults.failures;
+                }
+
+                // Mark reporting status
+                successfullyReportedConversions.forEach(conv => conv.reported = 1);
+                failedConversions.forEach(conv => conv.reported = 0);
+                invalidConversions.forEach(conv => conv.reported = 0);
+
+                // Save all conversions to ClickHouse
+                await this.reportToClickHouse([
+                    ...successfullyReportedConversions,
+                    ...failedConversions,
+                    ...invalidConversions
                 ]);
             }
 
@@ -75,6 +87,47 @@ class ConversionReporter {
     async getConversionsFromS3(s3Record) {
         const s3Key = decodeURIComponent(s3Record.s3.object.key);
         return S3Service.readDataFromFolder('report-conversions-bucket', s3Key);
+    }
+
+    /**
+     * Filters out previously reported conversions and invalid events.
+     * 1. Fetches existing conversions from ClickHouse
+     * 2. Creates a map of existing conversion keys
+     * 3. Filters out duplicates using session_id and keyword_clicked
+     * 4. Labels and filters out invalid conversions
+     * @param {Array} conversions - Array of new conversion objects
+     * @returns {Promise<Array>} Filtered array of valid, unreported conversions
+     */
+    async filterConversions(conversions) {
+
+        ConversionReporterLogger.info('Conversion Reporter: Filtering existing conversions');
+
+        // Step 1: Get conversions from ClickHouse that have been successfully reported
+        const existingConversions = await this.clickHouseService.query(`
+            SELECT session_id, keyword_clicked
+            FROM report_conversions
+            WHERE reported = 1 OR valid = 0
+            GROUP BY session_id, keyword_clicked
+        `);
+
+        // Step 2: Create a map of conversions that have been successfully reported
+        const existingConversionsMap = existingConversions.reduce((map, conversion) => {
+            const key = `${conversion.session_id}-${conversion.keyword_clicked}`;
+            map[key] = true;
+            return map;
+        }, {});
+
+        // Step 3: Include conversions that haven't been successfully reported
+        const newConversions = conversions.filter(conversion => {
+            const key = `${conversion.session_id}-${conversion.keyword_clicked}`;
+            return !existingConversionsMap[key];
+        });
+
+        // Step 4: Label the broken events. Mark the invalid ones as such.
+        await this.labelBrokenEvents(newConversions);
+
+        // Step 5: Return the new conversions for processing
+        return newConversions;
     }
 
     /**
@@ -109,46 +162,20 @@ class ConversionReporter {
     }
 
     /**
-     * Filters out previously reported conversions and invalid events.
-     * 1. Fetches existing conversions from ClickHouse
-     * 2. Creates a map of existing conversion keys
-     * 3. Filters out duplicates using session_id and keyword_clicked
-     * 4. Labels and filters out invalid conversions
-     * @param {Array} conversions - Array of new conversion objects
-     * @returns {Promise<Array>} Filtered array of valid, unreported conversions
-     */
-    async filterConversions(conversions) {
-
-        ConversionReporterLogger.info('Conversion Reporter: Filtering existing conversions');
-
-        // Step 1: Get all conversions from ClickHouse
-        const existingConversions = await this.clickHouseService.dynamicQuery('report_conversions', ['*']);
-
-        // Step 2: Filter out the ones that are already reported
-        const existingConversionsMap = existingConversions.reduce((map, conversion) => {
-            const key = `${conversion.session_id}-${conversion.keyword_clicked}`;
-            map[key] = true;
-            return map;
-        }, {});
-        const newConversions = conversions.filter(conversion => {
-            const key = `${conversion.session_id}-${conversion.keyword_clicked}`;
-            return !existingConversionsMap[key];
-        });
-        
-        // Step 3: Label the broken events. Mark the invalid ones as such. (inexisting pixels & unix timestamps older than 7 days)
-        await this.labelBrokenEvents(newConversions);
-
-        // Step 4: Return the new ones
-        return newConversions;
-    }
-
-    /**
      * Reports conversion data to ClickHouse database.
      * @param {Array} conversions - Array of conversion objects to report
      * @returns {Promise<boolean>} True if reporting successful
      */
     async reportToClickHouse(conversions) {
         ConversionReporterLogger.info('Conversion Reporter: Reporting to ClickHouse');
+        
+        // Ensure that each conversion has a 'reported' field
+        conversions.forEach(conversion => {
+            if (conversion.reported === undefined) {
+                conversion.reported = 0; // default to 0 (not reported)
+            }
+        });
+
         await this.clickHouseService.insert('report_conversions', conversions);
         return true;
     }
@@ -156,12 +183,11 @@ class ConversionReporter {
     /**
      * Reports conversion data to Facebook's API.
      * @param {Array} conversions - Array of conversion objects to report
-     * @returns {Promise<boolean>} True if reporting successful
+     * @returns {Promise<Object>} Object containing successes and failures
      */
     async reportToFacebook(conversions) {
         ConversionReporterLogger.info('Conversion Reporter: Reporting to Facebook');
-        await this.facebookService.reportConversions(conversions);
-        return true;
+        return await this.facebookService.reportConversions(conversions);
     }
 
     /**

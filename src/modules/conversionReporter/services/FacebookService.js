@@ -76,8 +76,7 @@ class FacebookService {
             }
           }
         );
-        console.log(response)
-        return response;
+        return response.data;
       } catch (error) {
         logger.error(`Error posting events to Facebook CAPI: ${error}`);
         throw error;
@@ -87,34 +86,36 @@ class FacebookService {
     /**
      * Reports conversion data to Facebook's API.
      * @param {Array} conversions - Array of conversion objects to report
-     * @returns {Promise<boolean>} True if reporting successful
+     * @returns {Promise<Object>} Object containing successes and failures
      */
     async reportConversions(conversions) {
 
-      // Step 1: Construct the payloads for the Facebook API, grouped by pixels.
-      const pixelGroupedConversions = _.groupBy(conversions, "pixel_id");
-      const fbProcessedPayloads = [];
-      Object.entries(pixelGroupedConversions).forEach(([pixelId, events]) => {
-        const fbCAPIPayloads = this.constructFacebookConversionEvents(events);
-        fbProcessedPayloads.push({
-          entityType: "pixel",
-          entityId: pixelId,
-          payloads: fbCAPIPayloads,
-        });
-      });
+        const successes = [];
+        const failures = [];
 
-      logger.info(`Posting events to FB CAPI in batches.`);
-      for (const batch of fbProcessedPayloads) {
+        // Group conversions by pixel ID
+        const pixelGroupedConversions = _.groupBy(conversions, "pixel_id");
 
-        // Step 2: Fetch the access tokens for the pixels.
-        const token = await this.getPixelsToken(batch.entityId);
+        for (const [pixelId, events] of Object.entries(pixelGroupedConversions)) {
 
-        // Step 3: Report the conversions to the Facebook API.
-        for (const payload of batch.payloads) {
-          await this.postCapiEvents(token, batch.entityId, payload);
+            const fbCAPIPayloads = this.constructFacebookConversionEvents(events);
+
+            // Fetch the access token for the pixel
+            const token = await this.getPixelsToken(pixelId);
+
+            for (const payload of fbCAPIPayloads) {
+                try {
+                    await this.postCapiEvents(token, pixelId, { data: payload.data });
+                    // Mark events in this payload as successful
+                    successes.push(...payload.events);
+                } catch (error) {
+                    // Mark events in this payload as failed
+                    failures.push(...payload.events);
+                    logger.error(`Error reporting to Facebook for pixel ${pixelId}:`, error);
+                }
+            }
         }
-      }
-      logger.info(`All events posted to FB CAPI.`);
+        return { successes, failures };
     }
 
     /**
@@ -125,10 +126,10 @@ class FacebookService {
     constructFacebookConversionEvents(events) {
 
         const MAX_EVENTS = 1000;
-    
-        let payloads = [];
-        let currentPayload = { data: [] };
-    
+        const payloads = [];
+        let currentPayloadData = [];
+        let currentPayloadEvents = [];
+
         events.forEach((event) => {
 
             logger.debug(JSON.stringify({
@@ -159,12 +160,6 @@ class FacebookService {
     
             for (let i = 0; i < event.conversions; i++) {
 
-                // If the current payload has reached the max number of events, push it to the payloads array and reset the current payload.
-                if (currentPayload.data.length === MAX_EVENTS) {
-                  payloads.push(currentPayload);
-                  currentPayload = { data: [] };
-                }
-    
                 const eventPayload = {
                   event_name: "Purchase",
                   event_time: Number(event.click_timestamp),
@@ -188,7 +183,7 @@ class FacebookService {
                     content_category: event.category,
                   },
                 };
-                currentPayload.data.push(eventPayload);
+                currentPayloadData.push(eventPayload);
 
                 const hashedData = {
                     country_hash: sha256(event.country_code.toLowerCase()),
@@ -235,23 +230,36 @@ class FacebookService {
                             event_id: `${event.ts_click_id}-${i}-${generateEventId()}`
                         },
                         batch_status: {
-                            current_batch_size: currentPayload.data.length,
+                            current_batch_size: currentPayloadData.length,
                             total_batches: payloads.length,
                             max_batch_size: MAX_EVENTS
                         }
                     }
                 }, null, 2));
             }
+            currentPayloadEvents.push(event);
+            
+            // If the current payload has reached the max number of events, push it to the payloads array and reset the current payload.
+            if (currentPayloadData.length === MAX_EVENTS) {
+                payloads.push({
+                    data: currentPayloadData,
+                    events: currentPayloadEvents
+                });
+                currentPayloadData = [];
+                currentPayloadEvents = [];
+            }
         });
-    
+
         // Add the last payload if it has any events
-        if (currentPayload.data.length > 0) {
-          payloads.push(currentPayload);
+        if (currentPayloadData.length > 0) {
+            payloads.push({
+                data: currentPayloadData,
+                events: currentPayloadEvents
+            });
         }
-    
+
         return payloads;
     }
-
 }
 
 
