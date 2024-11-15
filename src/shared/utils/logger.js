@@ -107,6 +107,7 @@ const streamDestination =
 
 const loggingEnv = EnvironmentVariablesManager.getEnvVariable("LOGGING_ENVIRONMENT");
 const logGroupName = "/aws/ec2/conversion-reporting" + (loggingEnv !== "production" ? "-" + loggingEnv : "");
+const logLevel = EnvironmentVariablesManager.getEnvVariable("LOG_LEVEL") || "info";
 
 // Server Logger
 const ServerLogger = new CustomLogger({
@@ -128,7 +129,7 @@ const TriggerConversionReportsQueueLogger = new CustomLogger({
 // Conversion Reporter Logger
 const ConversionReporterLogger = new CustomLogger({
     destination: streamDestination,
-    level: "info",
+    level: logLevel,
     logGroupName: logGroupName,
     logStreamName: "conversion-reporter",
 });
