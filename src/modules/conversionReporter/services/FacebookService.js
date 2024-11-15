@@ -1,6 +1,7 @@
 // Third party imports
 const _ = require('lodash');
 const sha256 = require("js-sha256");
+const axios = require('axios');
 const { v4: uuidv4 } = require("uuid");
 
 // Local application imports
@@ -8,6 +9,7 @@ const DatabaseRepository = require('../../../shared/lib/DatabaseRepository');
 const { usStates } = require('../constants/usStates');
 const camelCaseToSpaced = require('../utils/camelCaseToSpaced');
 const { ConversionReporterLogger: logger } = require('../../../shared/utils/logger');
+const { FB_API_URL } = require('../constants/fbConstants');
 
 function generateEventId() {
     return uuidv4();
@@ -16,7 +18,70 @@ function generateEventId() {
 class FacebookService {
 
     constructor() {
-        this.repository = new DatabaseRepository();
+      this.repository = new DatabaseRepository();
+    }
+
+    async getPixelsToken(pixelId) {
+
+      const tableName = 'pixels';
+      const fileds = ['ua.token'];
+      const filters = { "pixels.code": pixelId };
+      const joins = [
+        {
+          type: "inner",
+          table: "pixels_ad_accounts_relations AS paar",
+          first: "pixels.id",
+          operator: "=",
+          second: "paar.pixel_id"
+        },
+        {
+          type: "inner",
+          table: "ad_accounts AS aa",
+          first: "paar.ad_account_id",
+          operator: "=",
+          second: "aa.id"
+        },
+        {
+          type: "inner",
+          table: "aa_prioritized_ua_map AS map",
+          first: "aa.id",
+          operator: "=",
+          second: "map.aa_id",
+        },
+        {
+          type: "inner",
+          table: "user_accounts AS ua",
+          first: "map.ua_id",
+          operator: "=",
+          second: "ua.id"
+        }
+      ];
+      const result = await this.repository.query(tableName, fileds, filters, null, joins);
+      return result[0].token;
+    }
+
+    async postCapiEvents(token, pixel, data) {
+      logger.info(`Sending ${data.data.length} events to Facebook CAPI for pixel ${pixel}`);
+      const url = `${FB_API_URL}/${pixel}/events`;
+      try {
+        const response = await axios.post(
+          url, 
+          {
+            data: data.data,
+            access_token: token,
+          }, 
+          { 
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        console.log(response)
+        return response;
+      } catch (error) {
+        logger.error(`Error posting events to Facebook CAPI: ${error}`);
+        throw error;
+      }
     }
 
     /**
@@ -26,29 +91,30 @@ class FacebookService {
      */
     async reportConversions(conversions) {
 
-        // Step 1: Construct the payloads for the Facebook API, grouped by pixels.
-        const pixelGroupedConversions = _.groupBy(conversions, "pixel_id");
-        const fbProcessedPayloads = [];
-        Object.entries(pixelGroupedConversions).forEach(([pixelId, events]) => {
-          const fbCAPIPayloads = this.constructFacebookConversionEvents(events);
-          fbProcessedPayloads.push({
-            entityType: "pixel",
-            entityId: pixelId,
-            payloads: fbCAPIPayloads,
-          });
+      // Step 1: Construct the payloads for the Facebook API, grouped by pixels.
+      const pixelGroupedConversions = _.groupBy(conversions, "pixel_id");
+      const fbProcessedPayloads = [];
+      Object.entries(pixelGroupedConversions).forEach(([pixelId, events]) => {
+        const fbCAPIPayloads = this.constructFacebookConversionEvents(events);
+        fbProcessedPayloads.push({
+          entityType: "pixel",
+          entityId: pixelId,
+          payloads: fbCAPIPayloads,
         });
+      });
 
-        for (const batch of fbProcessedPayloads) {
+      logger.info(`Posting events to FB CAPI in batches.`);
+      for (const batch of fbProcessedPayloads) {
 
-            // Step 2: Fetch the access tokens for the pixels.
-            // TODO: Implement the logic to fetch the access tokens for the pixels.
+        // Step 2: Fetch the access tokens for the pixels.
+        const token = await this.getPixelsToken(batch.entityId);
 
-            // Step 3: Report the conversions to the Facebook API.
-            for (const payload of batch.payloads) {
-                // TODO: Implement the logic to report the conversions to the Facebook API.
-
-            }
+        // Step 3: Report the conversions to the Facebook API.
+        for (const payload of batch.payloads) {
+          await this.postCapiEvents(token, batch.entityId, payload);
         }
+      }
+      logger.info(`All events posted to FB CAPI.`);
     }
 
     /**

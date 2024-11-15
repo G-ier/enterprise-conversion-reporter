@@ -52,7 +52,6 @@ class DatabaseRepository {
       }
 
       if (limit) queryBuilder = queryBuilder.limit(limit);
-
       const results = await queryBuilder;
 
       return results;

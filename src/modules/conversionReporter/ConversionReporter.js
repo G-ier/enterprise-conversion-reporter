@@ -44,6 +44,7 @@ class ConversionReporter {
             ConversionReporterLogger.info(`❌ Invalid conversions: ${invalidConversions.length} records`);
 
             if (newConversions.length > 0) {
+
                 await Promise.all([
 
                     // Save all conversions to ClickHouse
@@ -51,6 +52,7 @@ class ConversionReporter {
 
                     // Report only the valid ones to Facebook
                     this.reportToFacebook(validConversions)
+                    
                 ]);
             }
 
