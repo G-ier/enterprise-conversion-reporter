@@ -142,9 +142,17 @@ const ReportConversionsQueueLogger = new CustomLogger({
     logStreamName: "report-conversions-queue",
 });
 
+const OptimizationLogger = new CustomLogger({
+  destination: streamDestination,
+  level: "info",
+  logGroupName: logGroupName,
+  logStreamName: "optimization",
+});
+
 module.exports = {
   ServerLogger,
   TriggerConversionReportsQueueLogger,
   ConversionReporterLogger,
-  ReportConversionsQueueLogger
+  ReportConversionsQueueLogger,
+  OptimizationLogger
 };

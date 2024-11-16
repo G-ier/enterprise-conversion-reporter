@@ -24,6 +24,13 @@ class ClickHouseService {
         query: query,
         format: "JSONEachRow",
       });
+
+      // Check if the query is a DDL statement
+      if (query.trim().toUpperCase().startsWith('OPTIMIZE')) {
+        // For DDL statements, there might not be a result set
+        return;
+      }
+
       const dataset = await resultSet.json();
       return dataset;
     } catch (error) {

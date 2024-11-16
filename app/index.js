@@ -1,9 +1,11 @@
 // Third party imports
 require("dotenv").config();
 const express = require("express");
+const cron = require('node-cron');
 
 // Local imports
 const EnvironmentVariablesManager = require("../src/shared/services/EnvironmentVariablesManager");
+const ClickHouseOptimizer = require('../src/modules/optimization/ClickHouseOptimizer');
 
 const initPollingForConversionReportsTrigger = async () => {
 
@@ -75,6 +77,12 @@ const initializeServer = async () => {
   // Initialize polling for both queues
   initPollingForConversionReportsTrigger();
   initPollingForConversionReporting();
+
+  // Schedule the optimization to run daily at 1:00 AM
+  cron.schedule('52 1 * * *', async () => {
+    const optimizer = new ClickHouseOptimizer();
+    await optimizer.optimizeTable('report_conversions');
+  });
 
   // Start server
   const port = EnvironmentVariablesManager.getEnvVariable("PORT") || 5000;
