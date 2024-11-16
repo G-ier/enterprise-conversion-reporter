@@ -91,7 +91,7 @@ class ConversionReporter {
 
     /**
      * Filters out previously reported conversions and invalid events.
-     * 1. Fetches existing conversions from ClickHouse
+     * 1. Fetches existing conversions from ClickHouse within the click_timestamp range of the batch
      * 2. Creates a map of existing conversion keys
      * 3. Filters out duplicates using session_id and keyword_clicked
      * 4. Labels and filters out invalid conversions
@@ -102,31 +102,37 @@ class ConversionReporter {
 
         ConversionReporterLogger.info('Conversion Reporter: Filtering existing conversions');
 
-        // Step 1: Get conversions from ClickHouse that have been successfully reported
+        // Step 1: Find min and max click_timestamp from incoming conversions
+        const timestamps = conversions.map(conv => conv.click_timestamp);
+        const minTimestamp = Math.min(...timestamps);
+        const maxTimestamp = Math.max(...timestamps);
+
+        // Step 2: Fetch existing conversions from ClickHouse within the timestamp range
         const existingConversions = await this.clickHouseService.query(`
             SELECT session_id, keyword_clicked
             FROM report_conversions
-            WHERE reported = 1 OR valid = 0
+            WHERE (reported = 1 OR valid = 0)
+            AND click_timestamp BETWEEN ${minTimestamp} AND ${maxTimestamp}
             GROUP BY session_id, keyword_clicked
         `);
 
-        // Step 2: Create a map of conversions that have been successfully reported
+        // Step 3: Create a map of conversions that have been successfully reported
         const existingConversionsMap = existingConversions.reduce((map, conversion) => {
             const key = `${conversion.session_id}-${conversion.keyword_clicked}`;
             map[key] = true;
             return map;
         }, {});
 
-        // Step 3: Include conversions that haven't been successfully reported
+        // Step 4: Include conversions that haven't been successfully reported
         const newConversions = conversions.filter(conversion => {
             const key = `${conversion.session_id}-${conversion.keyword_clicked}`;
             return !existingConversionsMap[key];
         });
 
-        // Step 4: Label the broken events. Mark the invalid ones as such.
+        // Step 5: Label the broken events. Mark the invalid ones as such.
         await this.labelBrokenEvents(newConversions);
 
-        // Step 5: Return the new conversions for processing
+        // Step 6: Return the new conversions for processing
         return newConversions;
     }
 
