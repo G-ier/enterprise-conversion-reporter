@@ -11,6 +11,10 @@ const camelCaseToSpaced = require('../utils/camelCaseToSpaced');
 const { ConversionReporterLogger: logger } = require('../../../shared/utils/logger');
 const { FB_API_URL } = require('../constants/fbConstants');
 
+/**
+ * Generates a unique event ID using UUID v4
+ * @returns {string} A unique UUID v4 string
+ */
 function generateEventId() {
     return uuidv4();
 }
@@ -21,6 +25,12 @@ class FacebookService {
       this.repository = new DatabaseRepository();
     }
 
+    /**
+     * Retrieves the access token for a given Facebook pixel ID
+     * @param {string} pixelId - The Facebook pixel ID
+     * @returns {Promise<string>} The access token associated with the pixel
+     */
+    // TODO: This method returns a token, but the fact that the pixel can be of different bm-s is concerning to me. Keep an eye on this.
     async getPixelsToken(pixelId) {
 
       const tableName = 'pixels';
@@ -60,6 +70,15 @@ class FacebookService {
       return result[0].token;
     }
 
+    /**
+     * Posts conversion events to Facebook's Conversion API
+     * @param {string} token - The Facebook access token
+     * @param {string} pixel - The Facebook pixel ID
+     * @param {Object} data - The event data to send
+     * @param {Array} data.data - Array of event objects
+     * @returns {Promise<Object>} The Facebook API response
+     * @throws {Error} If the API request fails
+     */
     async postCapiEvents(token, pixel, data) {
       logger.info(`Sending ${data.data.length} events to Facebook CAPI for pixel ${pixel}`);
       const url = `${FB_API_URL}/${pixel}/events`;
@@ -98,6 +117,7 @@ class FacebookService {
 
         for (const [pixelId, events] of Object.entries(pixelGroupedConversions)) {
 
+            // Construct the Facebook conversion events payloads
             const fbCAPIPayloads = this.constructFacebookConversionEvents(events);
 
             // Fetch the access token for the pixel
@@ -105,7 +125,9 @@ class FacebookService {
 
             for (const payload of fbCAPIPayloads) {
                 try {
+                    // Post the Facebook conversion events payload to the CAPI
                     await this.postCapiEvents(token, pixelId, { data: payload.data });
+                    
                     // Mark events in this payload as successful
                     successes.push(...payload.events);
                 } catch (error) {
