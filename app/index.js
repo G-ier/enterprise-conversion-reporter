@@ -78,8 +78,8 @@ const initializeServer = async () => {
   initPollingForConversionReportsTrigger();
   initPollingForConversionReporting();
 
-  // Schedule the optimization to run daily at 1:00 AM
-  cron.schedule('52 1 * * *', async () => {
+  // Schedule the optimization to run every 3 hours
+  cron.schedule('0 1,4,7,10,13,16,19,22 * * *', async () => {
     const optimizer = new ClickHouseOptimizer();
     await optimizer.optimizeTable('report_conversions');
   });
