@@ -56,9 +56,21 @@ class ConversionReporter {
                 }
 
                 // Mark reporting status
-                successfullyReportedConversions.forEach(conv => conv.reported = conv.conversions > 0 ? 1 : 0);
-                failedConversions.forEach(conv => conv.reported = 0);
-                invalidConversions.forEach(conv => conv.reported = 0);
+                successfullyReportedConversions.forEach(conv => {
+                    conv.reported = conv.conversions > 0 ? 1 : 0;
+                    // ClickHouse expects the timestamp in milliseconds
+                    conv.click_timestamp = conv.click_timestamp * 1000;
+                });
+                failedConversions.forEach(conv => {
+                    conv.reported = 0;
+                    // ClickHouse expects the timestamp in milliseconds
+                    conv.click_timestamp = conv.click_timestamp * 1000;
+                });
+                invalidConversions.forEach(conv => {
+                    conv.reported = 0;
+                    // ClickHouse expects the timestamp in milliseconds
+                    conv.click_timestamp = conv.click_timestamp * 1000;
+                });
 
                 // Save all conversions to ClickHouse
                 await this.reportToClickHouse([
