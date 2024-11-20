@@ -56,7 +56,7 @@ class ConversionReporter {
                 }
 
                 // Mark reporting status
-                successfullyReportedConversions.forEach(conv => conv.reported = 1);
+                successfullyReportedConversions.forEach(conv => conv.reported = conv.conversions > 0 ? 1 : 0);
                 failedConversions.forEach(conv => conv.reported = 0);
                 invalidConversions.forEach(conv => conv.reported = 0);
 
