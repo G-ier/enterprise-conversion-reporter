@@ -5,7 +5,6 @@ const cron = require('node-cron');
 
 // Local imports
 const EnvironmentVariablesManager = require("../src/shared/services/EnvironmentVariablesManager");
-const ClickHouseOptimizer = require('../src/modules/optimization/ClickHouseOptimizer');
 
 const initPollingForConversionReportsTrigger = async () => {
 
@@ -79,6 +78,7 @@ const initializeServer = async () => {
   initPollingForConversionReporting();
 
   // Schedule the optimization to run every 3 hours
+  const ClickHouseOptimizer = require('../src/modules/optimization/ClickHouseOptimizer');
   cron.schedule('0 1,4,7,10,13,16,19,22 * * *', async () => {
     const optimizer = new ClickHouseOptimizer();
     await optimizer.optimizeTable('report_conversions');
