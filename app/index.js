@@ -95,6 +95,7 @@ const initializeServer = async () => {
     const reportConversionsQueueUrl = EnvironmentVariablesManager.getEnvVariable("REPORT_CONVERSIONS_QUEUE_URL");
     const disablePollingForConversionReportsTrigger = EnvironmentVariablesManager.getEnvVariable("DISABLE_POLLING_FOR_CONVERSION_REPORTS_TRIGGER");
     const disablePollingForConversionReporting = EnvironmentVariablesManager.getEnvVariable("DISABLE_POLLING_FOR_CONVERSION_REPORTING");
+    const clickHouseUrl = EnvironmentVariablesManager.getEnvVariable("CLICKHOUSE_URL");
 
     ServerLogger.info(`
 
@@ -113,6 +114,9 @@ const initializeServer = async () => {
       Report Conversions Queue:
         URL: ${reportConversionsQueueUrl}
         Polling: ${disablePollingForConversionReporting === "true" ? "❌ Disabled" : "✅ Enabled"}
+
+      ClickHouse:
+        URL: ${clickHouseUrl}
     `);
   });
 }
