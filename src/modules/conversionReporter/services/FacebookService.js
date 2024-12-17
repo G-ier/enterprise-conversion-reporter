@@ -107,7 +107,7 @@ class FacebookService {
      * @param {Array} conversions - Array of conversion objects to report
      * @returns {Promise<Object>} Object containing successes and failures
      */
-    async reportConversions(conversions) {
+    async reportConversions(conversions, network) {
 
         const successes = [];
         const failures = [];
@@ -118,7 +118,7 @@ class FacebookService {
         for (const [pixelId, events] of Object.entries(pixelGroupedConversions)) {
 
             // Construct the Facebook conversion events payloads
-            const fbCAPIPayloads = this.constructFacebookConversionEvents(events);
+            const fbCAPIPayloads = this.constructEventsForFacebook(events, network);
 
             // Fetch the access token for the pixel
             const token = await this.getPixelsToken(pixelId);
@@ -143,10 +143,10 @@ class FacebookService {
     /**
      * Constructs Facebook conversion events payloads.
      * @param {Array} events - Array of conversion objects
+     * @param {string} network - Network type ('tonic' or 'crossroads')
      * @returns {Array} Array of Facebook conversion events payloads
      */
-    constructFacebookConversionEvents(events) {
-
+    constructEventsForFacebook(events, network) {
         const MAX_EVENTS = 1000;
         const payloads = [];
         let currentPayloadData = [];
@@ -154,133 +154,166 @@ class FacebookService {
 
         events.forEach((event) => {
 
-            logger.debug(JSON.stringify({
-                message: "Processing new conversion event",
-                data: {
-                    original_click_timestamp: event.click_timestamp,
-                    original_region: event.region,
-                    original_country_code: event.country_code
-                }
-            }, null, 2));
-
+            // Generate identifiers
             const fbc = `fb.1.${event.click_timestamp * 1000}.${event.ts_click_id}`; 
             const fbp = `fb.1.${event.click_timestamp * 1000}.${generateEventId()}`;
-            
-            logger.debug(JSON.stringify({
-                message: "Region transformation details",
-                data: {
-                    input_region: event.region,
-                    camelcase_to_spaced: camelCaseToSpaced(event.region),
-                    uppercase_region: camelCaseToSpaced(event.region).toUpperCase(),
-                    mapped_us_state: event.country_code === "US" ? usStates[camelCaseToSpaced(event.region).toUpperCase()] : null
+
+            // Transform state
+            const state = this.transformState(event);
+
+            // Create common user data
+            const userData = this.createUserData(event, fbc, fbp, state);
+
+            // Function to add payload and check batch size
+            const addPayload = (payload, event) => {
+                currentPayloadData.push(payload);
+                currentPayloadEvents.push(event);
+                if (currentPayloadData.length >= MAX_EVENTS) {
+                    payloads.push({
+                        data: currentPayloadData,
+                        events: currentPayloadEvents,
+                    });
+                    currentPayloadData = [];
+                    currentPayloadEvents = [];
                 }
-            }, null, 2));
+            };
 
-            const state = event.country_code === "US" && usStates[camelCaseToSpaced(event.region).toUpperCase()] !== undefined
-                ? usStates[camelCaseToSpaced(event.region).toUpperCase()].toLowerCase()
-                : event.region.toLowerCase().replace(" ", "");
-    
-            for (let i = 0; i < event.conversions; i++) {
+            if (network === "tonic") {
 
-                const eventPayload = {
-                  event_name: "Purchase",
-                  event_time: Number(event.click_timestamp),
-                  event_id: `${event.ts_click_id}-${i}-${generateEventId()}`,
-                  action_source: "website",
-                  user_data: {
-                    country: [sha256(event.country_code.toLowerCase())],
-                    client_ip_address: event.ip,
-                    client_user_agent: event.user_agent,
-                    ct: [sha256(event.city.toLowerCase().replace(" ", ""))],
-                    fbc: fbc,
-                    fbp: fbp,
-                    st: [sha256(state)],
-                  },
-                  opt_out: false,
-                  custom_data: {
-                    currency: "USD",
-                    value: `${event.revenue / event.conversions}`,
-                    content_name: event.keyword_clicked,
-                    content_type: event.vertical,
-                    content_category: event.category,
-                  },
-                };
-                currentPayloadData.push(eventPayload);
+                // Add 'Page View' payload
+                const pageViewPayload = this.createPayload(
+                    "Page View",
+                    event,
+                    userData,
+                    {},
+                    0
+                );
+                addPayload(pageViewPayload, event);
 
-                const hashedData = {
-                    country_hash: sha256(event.country_code.toLowerCase()),
-                    city_hash: sha256(event.city.toLowerCase().replace(" ", "")),
-                    state_hash: sha256(state)
-                };
+                // Add 'View content' payload
+                const viewContentPayload = this.createPayload(
+                    "View content",
+                    event,
+                    userData,
+                    { content_name: event.keyword_clicked },
+                    0
+                );
+                addPayload(viewContentPayload, event);
 
-                logger.debug(JSON.stringify({
-                    message: "Data transformation details",
-                    data: {
-                        original: {
-                            country: event.country_code,
-                            city: event.city,
-                            state: state,
-                            revenue: event.revenue,
-                            conversions: event.conversions,
-                            ip: event.ip,
-                            user_agent: event.user_agent,
-                            content_name: event.keyword_clicked,
-                            content_type: event.vertical,
-                            content_category: event.category
-                        },
-                        transformed: {
-                            country_lowercase: event.country_code.toLowerCase(),
-                            city_transformed: event.city.toLowerCase().replace(" ", ""),
-                            state_transformed: state,
-                            revenue_per_conversion: event.revenue / event.conversions,
-                            ip: event.ip,
-                            user_agent: event.user_agent,
-                            content_name: event.keyword_clicked,
-                            content_type: event.vertical,
-                            content_category: event.category
-                        },
-                        hashed: hashedData
-                    }
-                }, null, 2));
+            } else if (network === "crossroads") {
+                
+                // Add 'Page View' payloads
+                for (let i = 0; i < event.lander_visitors; i++) {
+                    const pageViewPayload = this.createPayload(
+                        "Page View",
+                        event,
+                        userData,
+                        {},
+                        i
+                    );
+                    addPayload(pageViewPayload, event);
+                }
 
-                logger.debug(JSON.stringify({
-                    message: "Facebook conversion payload details",
-                    data: {
-                        facebook_ids: {
-                            fbc: fbc,
-                            fbp: fbp,
-                            event_id: `${event.ts_click_id}-${i}-${generateEventId()}`
-                        },
-                        batch_status: {
-                            current_batch_size: currentPayloadData.length,
-                            total_batches: payloads.length,
-                            max_batch_size: MAX_EVENTS
-                        }
-                    }
-                }, null, 2));
+                // Add 'View content' payloads
+                for (let i = 0; i < event.lander_searches; i++) {
+                    const viewContentPayload = this.createPayload(
+                        "View content",
+                        event,
+                        userData,
+                        { content_name: event.keyword_clicked },
+                        i
+                    );
+                    addPayload(viewContentPayload, event);
+                }
             }
-            currentPayloadEvents.push(event);
-            
-            // If the current payload has reached the max number of events, push it to the payloads array and reset the current payload.
-            if (currentPayloadData.length === MAX_EVENTS) {
-                payloads.push({
-                    data: currentPayloadData,
-                    events: currentPayloadEvents
-                });
-                currentPayloadData = [];
-                currentPayloadEvents = [];
+
+            // Add 'Purchase' payloads
+            for (let i = 0; i < event.conversions; i++) {
+                const purchasePayload = this.createPayload(
+                    "Purchase",
+                    event,
+                    userData,
+                    {
+                        currency: "USD",
+                        value: `${event.revenue / event.conversions}`,
+                        content_name: event.keyword_clicked,
+                    },
+                    i
+                );
+                addPayload(purchasePayload, event);
             }
         });
 
-        // Add the last payload if it has any events
+        // Push any remaining payloads
         if (currentPayloadData.length > 0) {
             payloads.push({
                 data: currentPayloadData,
-                events: currentPayloadEvents
+                events: currentPayloadEvents,
             });
         }
 
         return payloads;
+    }
+
+    /**
+     * Creates a payload for an event.
+     * @param {string} eventName - Name of the event ('Page View', 'View content', 'Purchase')
+     * @param {Object} event - The event object
+     * @param {Object} userData - User data object
+     * @param {Object} customDataOverrides - Overrides for custom data
+     * @param {number} iteration - Iteration index for event_id uniqueness
+     * @returns {Object} Event payload
+     */
+    createPayload(eventName, event, userData, customDataOverrides, iteration) {
+        return {
+            event_name: eventName,
+            event_time: Number(event.click_timestamp),
+            event_id: `${event.ts_click_id}-${iteration}-${generateEventId()}`,
+            action_source: "website",
+            user_data: userData,
+            opt_out: false,
+            custom_data: {
+                content_type: event.vertical,
+                content_category: event.category,
+                ...customDataOverrides,
+            },
+        };
+    }
+
+    /**
+     * Creates user data for the payload.
+     * @param {Object} event - The event object
+     * @param {string} fbc - Facebook click ID
+     * @param {string} fbp - Facebook browser ID
+     * @param {string} state - Transformed state
+     * @returns {Object} User data object
+     */
+    createUserData(event, fbc, fbp, state) {
+        return {
+            country: [sha256(event.country_code.toLowerCase())],
+            client_ip_address: event.ip,
+            client_user_agent: event.user_agent,
+            ct: [sha256(event.city.toLowerCase().replace(" ", ""))],
+            fbc: fbc,
+            fbp: fbp,
+            st: [sha256(state)],
+        };
+    }
+
+    /**
+     * Transforms the state information.
+     * @param {Object} event - The event object
+     * @returns {string} Transformed state
+     */
+    transformState(event) {
+        if (event.country_code === "US") {
+            const region = camelCaseToSpaced(event.region).toUpperCase();
+            const usState = usStates[region];
+            if (usState) {
+                return usState.toLowerCase();
+            }
+        }
+        return event.region.toLowerCase().replace(" ", "");
     }
 }
 

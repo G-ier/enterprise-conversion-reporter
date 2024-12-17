@@ -18,6 +18,20 @@ class ConversionReporter {
         this.repository = new DatabaseRepository();
     }
 
+    async transformLandings(conversions, network) {
+        if (network === 'tonic') {
+            conversions.forEach(conversion => {
+                conversion.landings = 1;
+                conversion.serp_landings = 1;
+            });
+        } else if (network === 'crossroads') {
+            conversions.forEach(conversion => {
+                conversion.landings = conversion.lander_visitors;
+                conversion.serp_landings = conversion.lander_searches;
+            });
+        }
+    }
+
     /**
      * Processes an SQS message containing S3 event records with conversion data.
      * Filters out existing conversions, validates them, and reports to ClickHouse and Facebook.
@@ -32,7 +46,11 @@ class ConversionReporter {
             ConversionReporterLogger.info(`Conversion Reporter: Processing message`);
             const body = JSON.parse(message.Body);
             const s3Record = body.Records[0];
-            const conversions = await this.getConversionsFromS3(s3Record);
+            const encodedS3Key = s3Record.s3.object.key;
+            const decodedS3Key = decodeURIComponent(encodedS3Key);
+            const[moduleName, network, jobKey, accountName] = decodedS3Key.split("/");
+            const conversions = await this.getConversionsFromS3(decodedS3Key);
+
 
             // Filter out already reported conversions
             const newConversions = await this.filterConversions(conversions);
@@ -50,7 +68,7 @@ class ConversionReporter {
 
                 if (validConversions.length > 0) {
                     // Report only the valid ones to Facebook
-                    const facebookReportResults = await this.reportToFacebook(validConversions);
+                    const facebookReportResults = await this.reportToFacebook(validConversions, network);
                     successfullyReportedConversions = facebookReportResults.successes;
                     failedConversions = facebookReportResults.failures;
                 }
@@ -71,6 +89,11 @@ class ConversionReporter {
                     // ClickHouse expects the timestamp in milliseconds
                     conv.click_timestamp = conv.click_timestamp * 1000;
                 });
+
+                // Transform the landings and serp_landings fields based on the network.
+                await this.transformLandings(successfullyReportedConversions, network);
+                await this.transformLandings(failedConversions, network);
+                await this.transformLandings(invalidConversions, network);
 
                 // Save all conversions to ClickHouse
                 await this.reportToClickHouse([
@@ -96,8 +119,7 @@ class ConversionReporter {
      * @param {Object} s3Record - S3 event record containing object key
      * @returns {Promise<Array>} Array of conversion objects
      */
-    async getConversionsFromS3(s3Record) {
-        const s3Key = decodeURIComponent(s3Record.s3.object.key);
+    async getConversionsFromS3(s3Key) {
         return S3Service.readDataFromFolder('report-conversions-bucket', s3Key);
     }
 
@@ -203,9 +225,9 @@ class ConversionReporter {
      * @param {Array} conversions - Array of conversion objects to report
      * @returns {Promise<Object>} Object containing successes and failures
      */
-    async reportToFacebook(conversions) {
+    async reportToFacebook(conversions, network) {
         ConversionReporterLogger.info('Conversion Reporter: Reporting to Facebook');
-        return await this.facebookService.reportConversions(conversions);
+        return await this.facebookService.reportConversions(conversions, network);
     }
 
     /**

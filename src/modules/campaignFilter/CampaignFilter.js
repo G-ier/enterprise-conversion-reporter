@@ -46,7 +46,7 @@ class CampaignFilter {
                         
                         const parsedObjects = await this.readAndParseData(decodedS3Key);
                         totalProcessed += parsedObjects.length;
-                        
+
                         const filteredObjects = await this.filterSubscribedCampaigns(parsedObjects);
                         totalFiltered += filteredObjects.length;
                         
@@ -86,9 +86,9 @@ class CampaignFilter {
     async uploadFilteredData(filteredObjects, sourceInfo) {
         const timer = this.metrics.startTimer('uploadFilteredData');
         try {
-            const { accountName, jobKey } = sourceInfo;
+            const { accountName, jobKey, source } = sourceInfo;
             const filename = new Date().toISOString();
-            const folderName = `filtered-conversions/${jobKey}/${accountName}`;
+            const folderName = `filtered-conversions/${source}/${jobKey}/${accountName}`;
 
             return await S3Service.storeDataInFolder(
                 'report-conversions-bucket',
