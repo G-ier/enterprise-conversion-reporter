@@ -209,7 +209,7 @@ class ConversionReporter {
         ConversionReporterLogger.info('Conversion Reporter: Reporting to ClickHouse');
         
         // Log the first conversion object to inspect its structure
-        ConversionReporterLogger.info('First conversion object:', JSON.stringify(conversions[0], null, 2));
+        ConversionReporterLogger.info(`First conversions: ${conversions.length}`);
         
         // Log any fields that contain numbers in scientific notation
         conversions.forEach((conversion, index) => {
