@@ -126,7 +126,8 @@ class FacebookService {
             for (const payload of fbCAPIPayloads) {
                 try {
                     // Post the Facebook conversion events payload to the CAPI
-                    await this.postCapiEvents(token, pixelId, { data: payload.data });
+                    // TODO: Temporarily disabled to avoid overreporting
+                    // await this.postCapiEvents(token, pixelId, { data: payload.data });
                     
                     // Mark events in this payload as successful
                     successes.push(...payload.events);
