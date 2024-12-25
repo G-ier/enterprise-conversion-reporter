@@ -55,6 +55,9 @@ class ConversionReporter {
             const newConversions = await this.filterConversions(conversions);
             ConversionReporterLogger.info(`✅ New conversions: ${newConversions.length} records`);
 
+            // Label the broken events as such.
+            await this.labelBrokenEvents(newConversions);
+
             if (newConversions.length > 0) {
 
                 // Filter valid and invalid conversions
@@ -162,10 +165,7 @@ class ConversionReporter {
             return !existingConversionsMap[key];
         });
 
-        // Step 5: Label the broken events. Mark the invalid ones as such.
-        await this.labelBrokenEvents(newConversions);
-
-        // Step 6: Return the new conversions for processing
+        // Step 5: Return the new conversions for processing
         return newConversions;
     }
 
@@ -213,15 +213,16 @@ class ConversionReporter {
         
         // Log any fields that contain numbers in scientific notation
         conversions.forEach((conversion, index) => {
-            
-            Object.entries(conversion).forEach(([key, value]) => {
-                if (typeof value === 'number' && value.toString().includes('e')) {
-                    ConversionReporterLogger.info(`Scientific notation found - Index: ${index}, Field: ${key}, Value: ${value}`);
-                }
-            });
 
             if (conversion.reported === undefined) {
                 conversion.reported = 0;
+            }
+
+            // Check for unreasonably large timestamps and convert to current time if invalid
+            const MAX_VALID_TIMESTAMP = 4102444800000; // 2100-01-01 in milliseconds
+            if (conversion.click_timestamp > MAX_VALID_TIMESTAMP) {
+                ConversionReporterLogger.warn(`Converting invalid timestamp to current time for conversion ${index}. Original value: ${conversion.click_timestamp}`);
+                conversion.click_timestamp = Math.floor(Date.now() / 1000); // Gets current timestamp in seconds
             }
         });
 
