@@ -105,6 +105,7 @@ class FacebookService {
     /**
      * Reports conversion data to Facebook's API.
      * @param {Array} conversions - Array of conversion objects to report
+     * @param {string} network - Network type ('tonic' or 'crossroads')
      * @returns {Promise<Object>} Object containing successes and failures
      */
     async reportConversions(conversions, network) {
@@ -117,23 +118,25 @@ class FacebookService {
 
         for (const [pixelId, events] of Object.entries(pixelGroupedConversions)) {
 
-            // Construct the Facebook conversion events payloads
-            const fbCAPIPayloads = this.constructEventsForFacebook(events, network);
-
             // Fetch the access token for the pixel
             const token = await this.getPixelsToken(pixelId);
 
-            for (const payload of fbCAPIPayloads) {
+            // Batch events such that total payloads per batch <= MAX_EVENTS
+            const eventBatches = this.batchEventsByPayloadCount(events, network);
+
+            for (const batch of eventBatches) {
                 try {
+                    // Construct the Facebook conversion events payload
+                    const fbCAPIPayload = this.constructEventsForFacebook(batch.events, network);
+
                     // Post the Facebook conversion events payload to the CAPI
-                    // TODO: Temporarily disabled to avoid overreporting
-                    // await this.postCapiEvents(token, pixelId, { data: payload.data });
-                    
-                    // Mark events in this payload as successful
-                    successes.push(...payload.events);
+                    await this.postCapiEvents(token, pixelId, { data: fbCAPIPayload.data });
+
+                    // Mark events in this batch as successful
+                    successes.push(...batch.events);
                 } catch (error) {
-                    // Mark events in this payload as failed
-                    failures.push(...payload.events);
+                    // Mark events in this batch as failed
+                    failures.push(...batch.events);
                     logger.error(`Error reporting to Facebook for pixel ${pixelId}:`, error);
                 }
             }
@@ -142,16 +145,78 @@ class FacebookService {
     }
 
     /**
+     * Batches events such that the total number of payloads per batch does not exceed MAX_EVENTS
+     * @param {Array} events - Array of conversion events
+     * @param {string} network - Network type ('tonic' or 'crossroads')
+     * @returns {Array} Array of event batches
+     */
+    batchEventsByPayloadCount(events, network) {
+        const MAX_EVENTS = 1000;
+        const batches = [];
+        let currentBatch = {
+            events: [],
+            totalPayloads: 0
+        };
+
+        for (const event of events) {
+            // Calculate number of payloads this event will generate
+            const payloadCount = this.calculatePayloadCount(event, network);
+
+            // If adding this event exceeds MAX_EVENTS, start a new batch
+            if (currentBatch.totalPayloads + payloadCount > MAX_EVENTS) {
+                batches.push(currentBatch);
+                currentBatch = {
+                    events: [],
+                    totalPayloads: 0
+                };
+            }
+
+            // Add event to current batch
+            currentBatch.events.push(event);
+            currentBatch.totalPayloads += payloadCount;
+        }
+
+        // Add the last batch if it has events
+        if (currentBatch.events.length > 0) {
+            batches.push(currentBatch);
+        }
+
+        return batches;
+    }
+
+    /**
+     * Calculates the number of payloads an event will generate
+     * @param {Object} event - Conversion event
+     * @param {string} network - Network type ('tonic' or 'crossroads')
+     * @returns {number} Number of payloads
+     */
+    calculatePayloadCount(event, network) {
+        let payloadCount = 0;
+
+        if (network === "tonic") {
+            // For 'tonic', each event generates 2 payloads (Page View, View content)
+            payloadCount += 2;
+
+        } else if (network === "crossroads") {
+            // For 'crossroads', Page View and View content payloads depend on event.lander_visitors and event.lander_searches
+            payloadCount += event.lander_visitors; // Number of 'Page View' payloads
+            payloadCount += event.lander_searches; // Number of 'View content' payloads
+        }
+
+        // 'Purchase' payloads
+        payloadCount += event.conversions; // Number of 'Purchase' payloads
+
+        return payloadCount;
+    }
+
+    /**
      * Constructs Facebook conversion events payloads.
      * @param {Array} events - Array of conversion objects
      * @param {string} network - Network type ('tonic' or 'crossroads')
-     * @returns {Array} Array of Facebook conversion events payloads
+     * @returns {Object} Facebook events payload
      */
     constructEventsForFacebook(events, network) {
-        const MAX_EVENTS = 1000;
-        const payloads = [];
-        let currentPayloadData = [];
-        let currentPayloadEvents = [];
+        const data = [];
 
         events.forEach((event) => {
 
@@ -165,20 +230,6 @@ class FacebookService {
             // Create common user data
             const userData = this.createUserData(event, fbc, fbp, state);
 
-            // Function to add payload and check batch size
-            const addPayload = (payload, event) => {
-                currentPayloadData.push(payload);
-                currentPayloadEvents.push(event);
-                if (currentPayloadData.length >= MAX_EVENTS) {
-                    payloads.push({
-                        data: currentPayloadData,
-                        events: currentPayloadEvents,
-                    });
-                    currentPayloadData = [];
-                    currentPayloadEvents = [];
-                }
-            };
-
             if (network === "tonic") {
 
                 // Add 'Page View' payload
@@ -189,7 +240,7 @@ class FacebookService {
                     {},
                     0
                 );
-                addPayload(pageViewPayload, event);
+                data.push(pageViewPayload);
 
                 // Add 'View content' payload
                 const viewContentPayload = this.createPayload(
@@ -199,7 +250,7 @@ class FacebookService {
                     { content_name: event.keyword_clicked },
                     0
                 );
-                addPayload(viewContentPayload, event);
+                data.push(viewContentPayload);
 
             } else if (network === "crossroads") {
                 
@@ -212,7 +263,7 @@ class FacebookService {
                         {},
                         i
                     );
-                    addPayload(pageViewPayload, event);
+                    data.push(pageViewPayload);
                 }
 
                 // Add 'View content' payloads
@@ -224,7 +275,7 @@ class FacebookService {
                         { content_name: event.keyword_clicked },
                         i
                     );
-                    addPayload(viewContentPayload, event);
+                    data.push(viewContentPayload);
                 }
             }
 
@@ -241,19 +292,11 @@ class FacebookService {
                     },
                     i
                 );
-                addPayload(purchasePayload, event);
+                data.push(purchasePayload);
             }
         });
 
-        // Push any remaining payloads
-        if (currentPayloadData.length > 0) {
-            payloads.push({
-                data: currentPayloadData,
-                events: currentPayloadEvents,
-            });
-        }
-
-        return payloads;
+        return { data };
     }
 
     /**

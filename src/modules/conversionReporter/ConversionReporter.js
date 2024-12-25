@@ -74,10 +74,10 @@ class ConversionReporter {
                     successfullyReportedConversions = facebookReportResults.successes;
                     failedConversions = facebookReportResults.failures;
                 }
-
+                
                 // Mark reporting status
                 successfullyReportedConversions.forEach(conv => {
-                    conv.reported = conv.conversions > 0 ? 1 : 0;
+                    conv.reported = 1;
                     // ClickHouse expects the timestamp in milliseconds
                     conv.click_timestamp = conv.click_timestamp * 1000;
                 });
