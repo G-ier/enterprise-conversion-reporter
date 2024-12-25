@@ -208,10 +208,20 @@ class ConversionReporter {
     async reportToClickHouse(conversions) {
         ConversionReporterLogger.info('Conversion Reporter: Reporting to ClickHouse');
         
-        // Ensure that each conversion has a 'reported' field
-        conversions.forEach(conversion => {
+        // Log the first conversion object to inspect its structure
+        ConversionReporterLogger.info('First conversion object:', JSON.stringify(conversions[0], null, 2));
+        
+        // Log any fields that contain numbers in scientific notation
+        conversions.forEach((conversion, index) => {
+            
+            Object.entries(conversion).forEach(([key, value]) => {
+                if (typeof value === 'number' && value.toString().includes('e')) {
+                    ConversionReporterLogger.info(`Scientific notation found - Index: ${index}, Field: ${key}, Value: ${value}`);
+                }
+            });
+
             if (conversion.reported === undefined) {
-                conversion.reported = 0; // default to 0 (not reported)
+                conversion.reported = 0;
             }
         });
 
