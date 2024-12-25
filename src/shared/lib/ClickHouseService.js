@@ -34,8 +34,8 @@ class ClickHouseService {
       const dataset = await resultSet.json();
       return dataset;
     } catch (error) {
-      console.error("❌ Error querying Clickhouse: ", error);
-      ServerLogger.error("🚨 Error executing Clickhouse query:", error);
+      console.error(`❌ Error querying Clickhouse: ${error}`);
+      ServerLogger.error(`🚨 Error executing Clickhouse query: ${error}`);
       throw error;
     }
   }
@@ -49,8 +49,8 @@ class ClickHouseService {
       });
       return result;
     } catch (error) {
-      console.error("❌ Error inserting data on Clickhouse: ", error);
-      ClickhouseLogger.error("🚨 Error executing Clickhouse insert:", error);
+      console.error(`❌ Error inserting data on Clickhouse: ${error}`);
+      ClickhouseLogger.error(`🚨 Error executing Clickhouse insert: ${error}`);
       throw error;
     }
   }
@@ -99,8 +99,8 @@ class ClickHouseService {
       const result = await this.query(deleteQuery);
       return result;
     } catch (error) {
-      console.error(`❌ Error deleting data from table ${tableName}:`, error);
-      ClickhouseLogger.error(`🚨 Error executing Clickhouse delete:`, error);
+      console.error(`❌ Error deleting data from table ${tableName}: ${error}`);
+      ClickhouseLogger.error(`🚨 Error executing Clickhouse delete: ${error}`);
       throw error;
     }
   }

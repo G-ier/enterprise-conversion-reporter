@@ -64,7 +64,7 @@ class CampaignFilter {
 
             } catch (error) {            
                 this.metrics.recordProcessingErrors();
-                ConversionReporterLogger.error('❌ Error processing queue message:', error);
+                ConversionReporterLogger.error(`❌ Error processing message: ${error}`);
                 throw error;
             }
         });

@@ -51,7 +51,6 @@ class ConversionReporter {
             const[moduleName, network, jobKey, accountName] = decodedS3Key.split("/");
             const conversions = await this.getConversionsFromS3(decodedS3Key);
 
-
             // Filter out already reported conversions
             const newConversions = await this.filterConversions(conversions);
             ConversionReporterLogger.info(`✅ New conversions: ${newConversions.length} records`);
@@ -109,7 +108,7 @@ class ConversionReporter {
         } catch (error) {
             timer.end();
             this.metricsCollector.incrementCounter('failedMessages');
-            ConversionReporterLogger.error('❌ Error processing message:', error);
+            ConversionReporterLogger.error(`❌ Error processing message: ${error}`);
             throw error;
         }
     }

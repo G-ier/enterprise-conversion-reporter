@@ -21,7 +21,7 @@ class ClickHouseOptimizer {
       await this.clickHouseService.query(`OPTIMIZE TABLE ${tableName} FINAL`);
       OptimizationLogger.info(`Optimization completed for table: ${tableName}`);
     } catch (error) {
-      OptimizationLogger.error(`Error optimizing table ${tableName}:`, error);
+      OptimizationLogger.error(`Error optimizing table ${tableName}: ${error}`);
     }
   }
 }
