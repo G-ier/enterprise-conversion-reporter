@@ -115,6 +115,7 @@ class FacebookService {
 
         // Group conversions by pixel ID
         const pixelGroupedConversions = _.groupBy(conversions, "pixel_id");
+        logger.info(`There are ${Object.keys(pixelGroupedConversions).length} pixels to report to.`);
 
         for (const [pixelId, events] of Object.entries(pixelGroupedConversions)) {
 
