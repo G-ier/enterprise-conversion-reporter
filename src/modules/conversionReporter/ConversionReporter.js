@@ -19,7 +19,7 @@ class ConversionReporter {
     }
 
     async transformLandings(conversions, network) {
-        if (network === 'tonic') {
+        if (network === 'tonic' || network === 'sedo') {
             conversions.forEach(conversion => {
                 conversion.landings = 1;
                 conversion.serp_landings = 1;

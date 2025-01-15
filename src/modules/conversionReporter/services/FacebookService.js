@@ -231,7 +231,7 @@ class FacebookService {
             // Create common user data
             const userData = this.createUserData(event, fbc, fbp, state);
 
-            if (network === "tonic") {
+            if (network === "tonic" || network === "sedo") {
 
                 // Add 'Page View' payload
                 const pageViewPayload = this.createPayload(
