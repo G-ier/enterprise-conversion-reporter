@@ -3,6 +3,7 @@ const DynamoDbService = require("../../shared/lib/DynamoDBService");
 const { ConversionReporterLogger } = require("../../shared/utils/logger");
 const { parseSourceString } = require("./utils/sourceParser");
 const { MetricsCollector, OperationTracker } = require("../../shared/utils/monitoring");
+const EnvironmentVariablesManager = require("../../shared/services/EnvironmentVariablesManager");
 
 class CampaignFilter {
 
@@ -47,7 +48,12 @@ class CampaignFilter {
                         const parsedObjects = await this.readAndParseData(decodedS3Key);
                         totalProcessed += parsedObjects.length;
 
-                        const filteredObjects = await this.filterSubscribedCampaigns(parsedObjects);
+                        let filteredObjects = [];
+                        if (EnvironmentVariablesManager.getEnvVariable('DISABLE_SUBSCRIPTION_FILTERING') === 'true') {
+                            filteredObjects = parsedObjects;
+                        } else {
+                            filteredObjects = await this.filterSubscribedCampaigns(parsedObjects);
+                        }
                         totalFiltered += filteredObjects.length;
                         
                         if (filteredObjects.length > 0) {
