@@ -12,7 +12,7 @@ async function uploadJsonToS3() {
 
         // 2. Set up the S3 upload parameters
         const accountName = 'RoiADSLLC3';  // Replace with actual account name
-        const jobName = 'Crossroads-send-interpreted-data-to-s3';         // Replace with actual job name
+        const jobName = 'Crossroads-Todays-Interpreted-Data-To-S3';         // Replace with actual job name
         const filename = new Date().toISOString();
         const folderName = `networks/crossroads/${jobName}/${accountName}`;
         const bucketName = 'interpreted-events-bucket';   // Replace with your bucket name
