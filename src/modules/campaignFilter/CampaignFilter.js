@@ -50,6 +50,7 @@ class CampaignFilter {
 
                         let filteredObjects = [];
                         if (EnvironmentVariablesManager.getEnvVariable('DISABLE_SUBSCRIPTION_FILTERING') === 'true') {
+                            ConversionReporterLogger.info('❌ Subscription filtering is disabled');
                             filteredObjects = parsedObjects;
                         } else {
                             filteredObjects = await this.filterSubscribedCampaigns(parsedObjects);

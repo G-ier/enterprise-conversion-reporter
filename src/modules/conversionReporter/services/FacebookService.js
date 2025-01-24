@@ -34,8 +34,8 @@ class FacebookService {
     async getPixelsToken(pixelId) {
 
       const tableName = 'pixels';
-      const fileds = ['ua.token'];
-      const filters = { "pixels.code": pixelId };
+      const fileds = ['ua.token', 'ua.name', 'ua.fetching'];
+      const filters = { "pixels.code": pixelId, "ua.fetching": true };
       const joins = [
         {
           type: "inner",
@@ -53,7 +53,7 @@ class FacebookService {
         },
         {
           type: "inner",
-          table: "aa_prioritized_ua_map AS map",
+          table: "ua_aa_map AS map",
           first: "aa.id",
           operator: "=",
           second: "map.aa_id",
