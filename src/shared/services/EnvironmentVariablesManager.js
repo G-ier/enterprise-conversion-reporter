@@ -19,6 +19,7 @@ class EnvironmentVariablesManager {
 
     // Database
     "DATABASE_URL",
+    "MONGODB_URI_TEST"
 
   ];
 

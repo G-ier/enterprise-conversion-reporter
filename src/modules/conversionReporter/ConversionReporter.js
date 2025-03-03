@@ -1,6 +1,7 @@
 // Local Application Imports
 const S3Service = require('../../shared/lib/S3Service');
 const ClickHouseService = require('../../shared/lib/ClickHouseService');
+const BaseMongoRepository = require('../../shared/lib/MongoDbRepository');
 const FacebookService = require('./services/FacebookService');
 const TiktokService = require('./services/TiktokService');
 const DatabaseRepository = require('../../shared/lib/DatabaseRepository');
@@ -15,6 +16,7 @@ class ConversionReporter {
         this.tiktokService = new TiktokService();
         this.metricsCollector = new MetricsCollector('ConversionReporter');
         this.clickHouseService = new ClickHouseService()
+        this.mongoRepository = new BaseMongoRepository('report_conversions');
         this.repository = new DatabaseRepository();
     }
 
@@ -228,6 +230,75 @@ class ConversionReporter {
 
         await this.clickHouseService.insert('report_conversions', conversions);
         return true;
+    }
+
+
+
+    /**
+     * Reports conversion data to MongoDB.  
+     * @param {Array} conversions - Array of conversion objects to report
+     */
+    async reportToMongoDB(conversions) {
+        ConversionReporterLogger.info('Conversion Reporter: Reporting to MongoDB');
+       
+        const conversionsToUpdate = [];
+        const conversionsToInsert = [];
+
+        // Log any fields that contain numbers in scientific notation
+        conversions.forEach(async (conversion, index) => {
+
+            // Check if the conversions ID is already in MongoDB.
+            var existingConversion = null;
+
+            console.log("goes here");
+
+            existingConversion = await this.mongoRepository.findBySessionIdAndKeywordClicked(conversion.session_id, conversion.keyword_clicked);
+
+            console.log("Existing conversion: ");
+            console.log(existingConversion);
+
+            // If it is, add the conversion to update list.
+            if (existingConversion) {
+                conversionsToUpdate.push(conversion);
+            } else {
+                conversionsToInsert.push(conversion);
+            }
+        });
+
+        // Updates first
+        if (conversionsToUpdate.length > 0) {
+            conversionsToUpdate.forEach(async (updateConversion, index) => {
+                
+                const updateResult = await this.mongoRepository.updateByQuery({
+                    session_id: updateConversion.session_id,
+                    keyword_clicked: updateConversion.keyword_clicked
+                }, updateConversion).catch(error => {
+                    ConversionReporterLogger.error(`Conversion Reporter: Updating for ${updateConversion.session_id} and keyword ${updateConversion.keyword_clicked} failed: ${error.message}`);
+                });
+
+                console.log("Update result: ");
+                console.log(updateResult);
+
+                ConversionReporterLogger.info(`Conversion Reporter: Updating for ${updateConversion.session_id}-${updateConversion.keyword_clicked} finished`);
+            });
+        }
+
+        // Inserts the rest
+        if (conversionsToInsert.length > 0) {
+            conversionsToInsert.forEach(async (insertConversion, index) => {
+
+                const insertResult = await this.mongoRepository.create(insertConversion).catch(error => {
+                    ConversionReporterLogger.error(`Conversion Reporter: Inserting for ${updateConversion.session_id} and keyword ${updateConversion.keyword_clicked} failed: ${error.message}`);
+                });
+                
+                console.log("Insert result: ");
+                console.log(insertResult);
+
+                ConversionReporterLogger.info(`Conversion Reporter: Inserting for ${updateConversion.session_id}-${updateConversion.keyword_clicked} finished`);
+
+            });
+        }
+
     }
 
     /**
