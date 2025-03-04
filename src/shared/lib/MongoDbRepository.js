@@ -14,6 +14,18 @@ class BaseMongoRepository {
     this._collection = null;
   }
 
+  async initConnection() {
+    if (!mongoClient.client.topology || !mongoClient.client.topology.isConnected()) {
+      await mongoClient.connect();
+    }
+  } 
+
+  async endConnection() {
+    if (mongoClient.client.topology && mongoClient.client.topology.isConnected()) {
+      await mongoClient.disconnect();
+    }
+  } 
+
   async getCollection() {
     try {
       // If we already have a collection instance, return it
@@ -141,6 +153,8 @@ class BaseMongoRepository {
 
   /**
    * Update a singular document by update query
+   * SPECIAL CONNECTION MANAGEMENT
+   * - No explicit connection closing since this function will be used in async multi context
    * @param {Object} query - The update query
    * @param {Object} updateData - The data to update
    * @returns {Promise<boolean>} Whether the document was updated
@@ -159,7 +173,8 @@ class BaseMongoRepository {
       );
       return result.modifiedCount > 0;
     } finally {
-      await mongoClient.disconnect();
+      console.log("updateByQuery: Ending data update phase");
+      //await mongoClient.disconnect();
     }
   }
 

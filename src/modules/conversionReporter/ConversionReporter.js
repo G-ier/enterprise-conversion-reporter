@@ -263,6 +263,8 @@ class ConversionReporter {
             }
         }
 
+        // Add connection management since ?async connections bad?
+        this.mongoRepository.initConnection();
         // Updates first
         if (conversionsToUpdate.length > 0) {
             for (const updateConversion of conversionsToUpdate) {
@@ -293,6 +295,9 @@ class ConversionReporter {
                 ConversionReporterLogger.info(`Conversion Reporter: Inserting for ${insertConversion.session_id}-${insertConversion.keyword_clicked} finished`);
             }
         }
+
+        // End the connection
+        this.mongoRepository.endConnection();
 
     }
 
