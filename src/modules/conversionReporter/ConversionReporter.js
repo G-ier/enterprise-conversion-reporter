@@ -302,6 +302,32 @@ class ConversionReporter {
     }
 
     /**
+     * Deletes a conversion from MongoDB.
+     * @param {Array} conversions - Array of conversion objects to delete
+     */
+    async deleteFromMongoDB(conversions) {
+        ConversionReporterLogger.info('Conversion Reporter: Deleting report conversions from MongoDB');
+        
+        // Add connection management since ?async connections bad?
+        this.mongoRepository.initConnection();
+
+        // Main loop
+        for(const conversion of conversions){
+            
+            const deleteResult = await this.mongoRepository.delete(conversion).catch(error => {
+                ConversionReporterLogger.error(`Conversion Reporter: Deleting for tuple (${conversion.session_id}, ${conversion.keyword_clicked}) failed: ${error.message}`);
+            });
+            
+        }
+
+        // End the connection
+        this.mongoRepository.endConnection();
+
+        ConversionReporterLogger.info('Conversion Reporter: Deletion process finished');
+
+    }
+
+    /**
      * Reports conversion data to Facebook's API.
      * @param {Array} conversions - Array of conversion objects to report
      * @returns {Promise<Object>} Object containing successes and failures
