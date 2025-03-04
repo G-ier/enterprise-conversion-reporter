@@ -5,7 +5,7 @@ const { ServerLogger } = require('../utils/logger');
 class MongoDBClient {
 
   constructor() {
-    this.uri = EnvironmentVariablesManager.getEnvVariable("MONGODB_URI_TEST") || "mongodb+srv://ergi1000:ioEHULTdkgC8Gg6r@efflux-dev.eipbx.mongodb.net/?retryWrites=true&w=majority&appName=efflux-dev";
+    this.uri = EnvironmentVariablesManager.getEnvVariable("MONGODB_URI_TEST");
     if (!this.uri) {
       throw new Error('MONGODB_URI_TEST or MONGODB_URI environment variable is not set');
     }
@@ -22,8 +22,6 @@ class MongoDBClient {
     try {
       ServerLogger.info('Attempting to connect to MongoDB...');
       await this.client.connect();
-      console.log("Connected to MongoDB");
-      await this.client.db("efflux").command({ ping: 1 });
       ServerLogger.info('Successfully connected to MongoDB');
       return true;
     } catch (error) {

@@ -244,31 +244,28 @@ class ConversionReporter {
         const conversionsToUpdate = [];
         const conversionsToInsert = [];
 
-        // Log any fields that contain numbers in scientific notation
-        conversions.forEach(async (conversion, index) => {
-
-            // Check if the conversions ID is already in MongoDB.
-            var existingConversion = null;
-
-            console.log("goes here");
-
-            existingConversion = await this.mongoRepository.findBySessionIdAndKeywordClicked(conversion.session_id, conversion.keyword_clicked);
+        // Check each conversion against MongoDB and sort into update/insert lists
+        for (const conversion of conversions) {
+            // Check if the conversion ID is already in MongoDB
+            const existingConversion = await this.mongoRepository.findBySessionIdAndKeywordClicked(
+                conversion.session_id, 
+                conversion.keyword_clicked
+            );
 
             console.log("Existing conversion: ");
             console.log(existingConversion);
 
-            // If it is, add the conversion to update list.
+            // Add to appropriate list based on whether it exists
             if (existingConversion) {
                 conversionsToUpdate.push(conversion);
             } else {
                 conversionsToInsert.push(conversion);
             }
-        });
+        }
 
         // Updates first
         if (conversionsToUpdate.length > 0) {
-            conversionsToUpdate.forEach(async (updateConversion, index) => {
-                
+            for (const updateConversion of conversionsToUpdate) {
                 const updateResult = await this.mongoRepository.updateByQuery({
                     session_id: updateConversion.session_id,
                     keyword_clicked: updateConversion.keyword_clicked
@@ -280,23 +277,21 @@ class ConversionReporter {
                 console.log(updateResult);
 
                 ConversionReporterLogger.info(`Conversion Reporter: Updating for ${updateConversion.session_id}-${updateConversion.keyword_clicked} finished`);
-            });
+            }
         }
 
         // Inserts the rest
         if (conversionsToInsert.length > 0) {
-            conversionsToInsert.forEach(async (insertConversion, index) => {
-
+            for (const insertConversion of conversionsToInsert) {
                 const insertResult = await this.mongoRepository.create(insertConversion).catch(error => {
-                    ConversionReporterLogger.error(`Conversion Reporter: Inserting for ${updateConversion.session_id} and keyword ${updateConversion.keyword_clicked} failed: ${error.message}`);
+                    ConversionReporterLogger.error(`Conversion Reporter: Inserting for ${insertConversion.session_id} and keyword ${insertConversion.keyword_clicked} failed: ${error.message}`);
                 });
                 
                 console.log("Insert result: ");
                 console.log(insertResult);
 
-                ConversionReporterLogger.info(`Conversion Reporter: Inserting for ${updateConversion.session_id}-${updateConversion.keyword_clicked} finished`);
-
-            });
+                ConversionReporterLogger.info(`Conversion Reporter: Inserting for ${insertConversion.session_id}-${insertConversion.keyword_clicked} finished`);
+            }
         }
 
     }

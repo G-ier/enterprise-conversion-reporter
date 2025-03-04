@@ -9,7 +9,7 @@ class BaseMongoRepository {
     if (!collectionName) {
       throw new Error('Collection name is required');
     }
-    this.databaseName = "efflux";
+    this.databaseName = EnvironmentVariablesManager.getEnvVariable("MONGODB_DATABASE");
     this.collectionName = collectionName;
     this._collection = null;
   }
