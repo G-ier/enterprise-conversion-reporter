@@ -1,0 +1,3 @@
+{
+    "Body": "{\"Records\": [{ \"s3\": { \"object\": { \"key\": \"test-conversions/airfind/Airfind-Todays-Interpreted-Data-To-S3/m@roi.ad/[INPUT TEST S3 FILE NAME HERE]\" } } }]}"
+}
