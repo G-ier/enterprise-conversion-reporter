@@ -54,17 +54,17 @@ class ConversionReporter {
             const conversions = await this.getConversionsFromS3(decodedS3Key);
 
             // Filter out already reported conversions
-            const newConversions = await this.filterConversions(conversions);
-            ConversionReporterLogger.info(`✅ New conversions: ${newConversions.length} records`);
+            // const newConversions = await this.filterConversions(conversions);
+            //ConversionReporterLogger.info(`✅ New conversions: ${newConversions.length} records`);
 
             // Label the broken events as such.
-            await this.labelBrokenEvents(newConversions);
+            await this.labelBrokenEvents(conversions);
 
-            if (newConversions.length > 0) {
+            if (conversions.length > 0) {
 
                 // Filter valid and invalid conversions
-                const validConversions = newConversions.filter(conversion => conversion.valid);
-                const invalidConversions = newConversions.filter(conversion => !conversion.valid);
+                const validConversions = conversions.filter(conversion => conversion.valid);
+                const invalidConversions = conversions.filter(conversion => !conversion.valid);
                 ConversionReporterLogger.info(`❌ Invalid conversions: ${invalidConversions.length} records`);
 
                 let successfullyReportedConversions = [];
@@ -100,7 +100,16 @@ class ConversionReporter {
                 await this.transformLandings(invalidConversions, network);
 
                 // Save all conversions to ClickHouse
+                /*
                 await this.reportToClickHouse([
+                    ...successfullyReportedConversions,
+                    ...failedConversions,
+                    ...invalidConversions
+                ]);
+                */
+
+                // Save all conversions to MongoDB
+                await this.reportToMongoDB([
                     ...successfullyReportedConversions,
                     ...failedConversions,
                     ...invalidConversions
@@ -240,6 +249,9 @@ class ConversionReporter {
      */
     async reportToMongoDB(conversions) {
         ConversionReporterLogger.info('Conversion Reporter: Reporting to MongoDB');
+
+        console.log("Conversions: ");
+        console.log(conversions);
        
         const conversionsToUpdate = [];
         const conversionsToInsert = [];
