@@ -217,51 +217,16 @@ class ConversionReporter {
 
         console.log("Conversions: ");
         console.log(conversions);
-       
-        const conversionsToUpdate = [];
-        const conversionsToInsert = [];
-
-        // Check each conversion against MongoDB and sort into update/insert lists
-        for (const conversion of conversions) {
-            // Check if the conversion ID is already in MongoDB
-            const existingConversion = await this.mongoRepository.findBySessionIdAndKeywordClicked(
-                conversion.session_id, 
-                conversion.keyword_clicked
-            );
-
-            console.log("Existing conversion: ");
-            console.log(existingConversion);
-
-            // Add to appropriate list based on whether it exists
-            if (existingConversion) {
-                conversionsToUpdate.push(conversion);
-            } else {
-                conversionsToInsert.push(conversion);
-            }
-        }
+    
 
         // Add connection management since ?async connections bad?
         this.mongoRepository.initConnection();
         // Updates first
-        if (conversionsToUpdate.length > 0) {
-            for (const updateConversion of conversionsToUpdate) {
-                const updateResult = await this.mongoRepository.updateByQuery({
-                    session_id: updateConversion.session_id,
-                    keyword_clicked: updateConversion.keyword_clicked
-                }, updateConversion).catch(error => {
-                    ConversionReporterLogger.error(`Conversion Reporter: Updating for ${updateConversion.session_id} and keyword ${updateConversion.keyword_clicked} failed: ${error.message}`);
-                });
 
-                console.log("Update result: ");
-                console.log(updateResult);
-
-                ConversionReporterLogger.info(`Conversion Reporter: Updating for ${updateConversion.session_id}-${updateConversion.keyword_clicked} finished`);
-            }
-        }
 
         // Inserts the rest
-        if (conversionsToInsert.length > 0) {
-            for (const insertConversion of conversionsToInsert) {
+        if (conversions.length > 0) {
+            for (const insertConversion of conversions) {
                 const insertResult = await this.mongoRepository.create(insertConversion).catch(error => {
                     ConversionReporterLogger.error(`Conversion Reporter: Inserting for ${insertConversion.session_id} and keyword ${insertConversion.keyword_clicked} failed: ${error.message}`);
                 });
