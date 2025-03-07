@@ -141,20 +141,19 @@ class ConversionReporter {
         ConversionReporterLogger.info('Conversion Reporter: Filtering existing conversions');
 
         // Step 1: Find min and max click_timestamp from incoming conversions
-        //const timestamps = conversions.map(conv => conv.click_timestamp);
-        //const minTimestamp = Math.min(...timestamps);
-        //const maxTimestamp = Math.max(...timestamps);
+        const timestamps = conversions.map(conv => conv.click_timestamp);
+        const minTimestamp = Math.min(...timestamps);
+        const maxTimestamp = Math.max(...timestamps);
 
 
-        /*
-        // Step 2: Fetch existing conversions from ClickHouse within the timestamp range
-        const existingConversions = await this.clickHouseService.query(`
-            SELECT session_id, keyword_clicked
-            FROM report_conversions
-            WHERE (reported = 1 OR valid = 0)
-            AND click_timestamp BETWEEN ${minTimestamp} AND ${maxTimestamp}
-            GROUP BY session_id, keyword_clicked
-        `);
+        
+        // Step 2: Fetch existing conversions from MongoDB within the timestamp range
+        const existingConversions = await this.mongoRepository.findUnlimited({
+            $and: [
+                { $or: [{ reported: 1 }, { valid: 0 }] },
+                { click_timestamp: { $gte: minTimestamp, $lte: maxTimestamp } }
+            ]
+        });
 
         
 
@@ -164,37 +163,15 @@ class ConversionReporter {
             map[key] = true;
             return map;
         }, {});
-        */
-
-        const newConversions = [];        
-
-        // Check each conversion against MongoDB and sort into update/insert lists
-        for (const conversion of conversions) {
-            // Check if the conversion ID is already in MongoDB
-            const existingConversion = await this.mongoRepository.findBySessionIdAndKeywordClicked(
-                conversion.session_id, 
-                conversion.keyword_clicked
-            );
-
-            console.log("Existing conversion: ");
-            console.log(existingConversion);
-
-            // Add to appropriate list based on whether it exists
-            if (existingConversion) {
-                //conversionsToUpdate.push(conversion);
-                console.log("Existing conversion found.")
-            } else {
-                newConversions.push(conversion);
-            }
-        }
         
-        /*
+        
+        
         // Step 4: Include conversions that haven't been successfully reported
         const newConversions = conversions.filter(conversion => {
             const key = `${conversion.session_id}-${conversion.keyword_clicked}`;
             return !existingConversionsMap[key];
         });
-        */
+        
 
         // Step 5: Return the new conversions for processing
         return newConversions;

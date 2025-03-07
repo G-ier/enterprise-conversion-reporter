@@ -120,6 +120,27 @@ class BaseMongoRepository {
       .toArray();
   }
 
+    /**
+   * UNLIMITED MODIFIED QUERY
+   * Find documents by query
+   * @param {Object} query - MongoDB query
+   * @param {Object} options - Query options (sort, projection, etc.)
+   * @returns {Promise<Array>}
+   */
+    async findUnlimited(query = {}, options = {}) {
+      const collection = await this.getCollection();
+      const {
+        sort = { createdAt: -1 },
+        limit = 50,
+        skip = 0,
+        projection = null
+      } = options;
+  
+      return await collection
+        .find(query, { projection })
+        .toArray();
+    }
+
   /**
    * Find one document by query
    * @param {Object} query - MongoDB query
