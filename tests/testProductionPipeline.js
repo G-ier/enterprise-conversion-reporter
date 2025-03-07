@@ -8,6 +8,7 @@ const TEST_MODES = {
     MOCK_SQS_MESSAGE: 'mock_sqs_message',
     MOCK_SQS_MESSAGE_WITH_MULTIPLE_CONVERSIONS: 'mock_sqs_message_with_multiple_conversions',
     MOCK_SQS_MESSAGE_WITH_MULTIPLE_UPDATES: 'mock_sqs_message_with_multiple_updates',
+    MONITORING_TEST_4: 'mt4',
     ERROR_TEST: 'error'
 };
 
@@ -27,6 +28,10 @@ function generateTestData(mode) {
         case TEST_MODES.MOCK_SQS_MESSAGE_WITH_MULTIPLE_UPDATES:
             return {
                 "Body": "{\"Records\": [{ \"s3\": { \"object\": { \"key\": \"test-conversions/airfind/Airfind-Todays-Interpreted-Data-To-S3/m@roi.ad/MONITORING_TEST_3.json\" } } }]}"
+            };
+        case TEST_MODES.MONITORING_TEST_4:
+            return {
+                "Body": "{\"Records\": [{ \"s3\": { \"object\": { \"key\": \"test-conversions/airfind/Airfind-Todays-Interpreted-Data-To-S3/m@roi.ad/MONITORING_TEST_4.json\" } } }]}"
             };
         default:
             throw new Error(`Invalid test mode: ${mode}`);
