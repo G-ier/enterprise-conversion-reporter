@@ -12,8 +12,6 @@ const TEST_MODES = {
     ERROR_TEST: 'error'
 };
 
-
-
 // Generate test data
 function generateTestData(mode) {
     switch (mode) {

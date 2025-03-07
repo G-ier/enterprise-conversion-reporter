@@ -81,17 +81,17 @@ class ConversionReporter {
                 successfullyReportedConversions.forEach(conv => {
                     conv.reported = 1;
                     // ClickHouse expects the timestamp in milliseconds
-                    conv.click_timestamp = conv.click_timestamp * 1000;
+                    conv.click_timestamp = conv.click_timestamp;
                 });
                 failedConversions.forEach(conv => {
                     conv.reported = 0;
                     // ClickHouse expects the timestamp in milliseconds
-                    conv.click_timestamp = conv.click_timestamp * 1000;
+                    conv.click_timestamp = conv.click_timestamp;
                 });
                 invalidConversions.forEach(conv => {
                     conv.reported = 0;
                     // ClickHouse expects the timestamp in milliseconds
-                    conv.click_timestamp = conv.click_timestamp * 1000;
+                    conv.click_timestamp = conv.click_timestamp;
                 });
 
                 // Transform the landings and serp_landings fields based on the network.
@@ -145,8 +145,6 @@ class ConversionReporter {
         const minTimestamp = Math.min(...timestamps);
         const maxTimestamp = Math.max(...timestamps);
 
-
-        
         // Step 2: Fetch existing conversions from MongoDB within the timestamp range
         const existingConversions = await this.mongoRepository.findUnlimited({
             $and: [
@@ -154,8 +152,7 @@ class ConversionReporter {
                 { click_timestamp: { $gte: minTimestamp, $lte: maxTimestamp } }
             ]
         });
-
-        
+        console.log("Existing conversions: ", existingConversions);
 
         // Step 3: Create a map of conversions that have been successfully reported
         const existingConversionsMap = existingConversions.reduce((map, conversion) => {
@@ -163,8 +160,6 @@ class ConversionReporter {
             map[key] = true;
             return map;
         }, {});
-        
-        
         
         // Step 4: Include conversions that haven't been successfully reported
         const newConversions = conversions.filter(conversion => {
@@ -213,20 +208,41 @@ class ConversionReporter {
      * @param {Array} conversions - Array of conversion objects to report
      */
     async reportToMongoDB(conversions) {
+        
         ConversionReporterLogger.info('Conversion Reporter: Reporting to MongoDB');
-
-        console.log("Conversions: ");
-        console.log(conversions);
     
-
         // Add connection management since ?async connections bad?
         this.mongoRepository.initConnection();
-        // Updates first
 
+        // Step 1: Find min and max click_timestamp from incoming conversions
+        const timestamps = conversions.map(conv => conv.click_timestamp);
+        const minTimestamp = Math.min(...timestamps)
+        const maxTimestamp = Math.max(...timestamps)
 
+        const existingConversions = await this.mongoRepository.findUnlimited({
+            click_timestamp: { $gte: minTimestamp, $lte: maxTimestamp }
+        });
+        console.log("Existing conversions: ", existingConversions);
+
+        // Step 3: Create a map of conversions that have been successfully reported
+        const existingConversionsMap = existingConversions.reduce((map, conversion) => {
+            const key = `${conversion.session_id}-${conversion.keyword_clicked}`;
+            map[key] = true;
+            return map;
+        }, {});
+        
+
+        // Step 4: Include conversions that haven't been successfully reported
+        const newConversions = conversions.filter(conversion => {
+            const key = `${conversion.session_id}-${conversion.keyword_clicked}`;
+            return !existingConversionsMap[key];
+        });
+        
         // Inserts the rest
-        if (conversions.length > 0) {
-            for (const insertConversion of conversions) {
+        if (newConversions.length > 0) {
+
+            for (const insertConversion of newConversions) {
+                
                 const insertResult = await this.mongoRepository.create(insertConversion).catch(error => {
                     ConversionReporterLogger.error(`Conversion Reporter: Inserting for ${insertConversion.session_id} and keyword ${insertConversion.keyword_clicked} failed: ${error.message}`);
                 });
@@ -236,11 +252,12 @@ class ConversionReporter {
 
                 ConversionReporterLogger.info(`Conversion Reporter: Inserting for ${insertConversion.session_id}-${insertConversion.keyword_clicked} finished`);
             }
+        } else {
+            ConversionReporterLogger.info('Conversion Reporter: No new conversions to store in MongoDB');
         }
 
         // End the connection
         this.mongoRepository.endConnection();
-
     }
 
     /**
