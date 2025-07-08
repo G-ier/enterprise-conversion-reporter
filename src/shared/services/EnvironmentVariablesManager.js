@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 // Load the AWS SDK
 const { SecretsManagerClient, GetSecretValueCommand } = require("@aws-sdk/client-secrets-manager");
 const { SSMClient, GetParameterCommand } = require("@aws-sdk/client-ssm");
@@ -19,6 +21,8 @@ class EnvironmentVariablesManager {
 
     // Database
     "DATABASE_URL",
+    "MONGODB_URI_TEST",
+    "MONGODB_DATABASE"
 
   ];
 

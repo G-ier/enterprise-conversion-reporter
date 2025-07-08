@@ -131,3 +131,6 @@ dist
 testSamples/
 test.js
 logs/
+
+# Unnecessary test files
+uploadJsonToS3.js

@@ -1,6 +1,7 @@
 // Local Application Imports
 const S3Service = require('../../shared/lib/S3Service');
 const ClickHouseService = require('../../shared/lib/ClickHouseService');
+const BaseMongoRepository = require('../../shared/lib/MongoDbRepository');
 const FacebookService = require('./services/FacebookService');
 const TiktokService = require('./services/TiktokService');
 const DatabaseRepository = require('../../shared/lib/DatabaseRepository');
@@ -15,6 +16,7 @@ class ConversionReporter {
         this.tiktokService = new TiktokService();
         this.metricsCollector = new MetricsCollector('ConversionReporter');
         this.clickHouseService = new ClickHouseService()
+        this.mongoRepository = new BaseMongoRepository('report_conversions');
         this.repository = new DatabaseRepository();
     }
 
@@ -79,17 +81,17 @@ class ConversionReporter {
                 successfullyReportedConversions.forEach(conv => {
                     conv.reported = 1;
                     // ClickHouse expects the timestamp in milliseconds
-                    conv.click_timestamp = conv.click_timestamp * 1000;
+                    conv.click_timestamp = conv.click_timestamp;
                 });
                 failedConversions.forEach(conv => {
                     conv.reported = 0;
                     // ClickHouse expects the timestamp in milliseconds
-                    conv.click_timestamp = conv.click_timestamp * 1000;
+                    conv.click_timestamp = conv.click_timestamp;
                 });
                 invalidConversions.forEach(conv => {
                     conv.reported = 0;
                     // ClickHouse expects the timestamp in milliseconds
-                    conv.click_timestamp = conv.click_timestamp * 1000;
+                    conv.click_timestamp = conv.click_timestamp;
                 });
 
                 // Transform the landings and serp_landings fields based on the network.
@@ -97,8 +99,8 @@ class ConversionReporter {
                 await this.transformLandings(failedConversions, network);
                 await this.transformLandings(invalidConversions, network);
 
-                // Save all conversions to ClickHouse
-                await this.reportToClickHouse([
+                // Save all conversions to MongoDB
+                await this.reportToMongoDB([
                     ...successfullyReportedConversions,
                     ...failedConversions,
                     ...invalidConversions
@@ -114,7 +116,7 @@ class ConversionReporter {
             ConversionReporterLogger.error(`❌ Error processing message: ${error}`);
             throw error;
         }
-    }
+    }    
 
     /**
      * Retrieves conversion data from an S3 bucket using the provided S3 record.
@@ -143,14 +145,14 @@ class ConversionReporter {
         const minTimestamp = Math.min(...timestamps);
         const maxTimestamp = Math.max(...timestamps);
 
-        // Step 2: Fetch existing conversions from ClickHouse within the timestamp range
-        const existingConversions = await this.clickHouseService.query(`
-            SELECT session_id, keyword_clicked
-            FROM report_conversions
-            WHERE (reported = 1 OR valid = 0)
-            AND click_timestamp BETWEEN ${minTimestamp} AND ${maxTimestamp}
-            GROUP BY session_id, keyword_clicked
-        `);
+        // Step 2: Fetch existing conversions from MongoDB within the timestamp range
+        const existingConversions = await this.mongoRepository.findUnlimited({
+            $and: [
+                { $or: [{ reported: 1 }, { valid: 0 }] },
+                { click_timestamp: { $gte: minTimestamp, $lte: maxTimestamp } }
+            ]
+        });
+        console.log("Existing conversions: ", existingConversions);
 
         // Step 3: Create a map of conversions that have been successfully reported
         const existingConversionsMap = existingConversions.reduce((map, conversion) => {
@@ -158,12 +160,13 @@ class ConversionReporter {
             map[key] = true;
             return map;
         }, {});
-
+        
         // Step 4: Include conversions that haven't been successfully reported
         const newConversions = conversions.filter(conversion => {
             const key = `${conversion.session_id}-${conversion.keyword_clicked}`;
             return !existingConversionsMap[key];
         });
+        
 
         // Step 5: Return the new conversions for processing
         return newConversions;
@@ -201,33 +204,86 @@ class ConversionReporter {
     }
 
     /**
-     * Reports conversion data to ClickHouse database.
+     * Reports conversion data to MongoDB.  
      * @param {Array} conversions - Array of conversion objects to report
-     * @returns {Promise<boolean>} True if reporting successful
      */
-    async reportToClickHouse(conversions) {
-        ConversionReporterLogger.info('Conversion Reporter: Reporting to ClickHouse');
+    async reportToMongoDB(conversions) {
         
-        // Log the first conversion object to inspect its structure
-        ConversionReporterLogger.info(`First conversions: ${conversions.length}`);
-        
-        // Log any fields that contain numbers in scientific notation
-        conversions.forEach((conversion, index) => {
+        ConversionReporterLogger.info('Conversion Reporter: Reporting to MongoDB');
+    
+        // Add connection management since ?async connections bad?
+        this.mongoRepository.initConnection();
 
-            if (conversion.reported === undefined) {
-                conversion.reported = 0;
-            }
+        // Step 1: Find min and max click_timestamp from incoming conversions
+        const timestamps = conversions.map(conv => conv.click_timestamp);
+        const minTimestamp = Math.min(...timestamps)
+        const maxTimestamp = Math.max(...timestamps)
 
-            // Check for unreasonably large timestamps and convert to current time if invalid
-            const MAX_VALID_TIMESTAMP = 4102444800000; // 2100-01-01 in milliseconds
-            if (conversion.click_timestamp > MAX_VALID_TIMESTAMP) {
-                ConversionReporterLogger.warn(`Converting invalid timestamp to current time for conversion ${index}. Original value: ${conversion.click_timestamp}`);
-                conversion.click_timestamp = Math.floor(Date.now() / 1000); // Gets current timestamp in seconds
-            }
+        const existingConversions = await this.mongoRepository.findUnlimited({
+            click_timestamp: { $gte: minTimestamp, $lte: maxTimestamp }
         });
+        console.log("Existing conversions: ", existingConversions);
 
-        await this.clickHouseService.insert('report_conversions', conversions);
-        return true;
+        // Step 3: Create a map of conversions that have been successfully reported
+        const existingConversionsMap = existingConversions.reduce((map, conversion) => {
+            const key = `${conversion.session_id}-${conversion.keyword_clicked}`;
+            map[key] = true;
+            return map;
+        }, {});
+        
+
+        // Step 4: Include conversions that haven't been successfully reported
+        const newConversions = conversions.filter(conversion => {
+            const key = `${conversion.session_id}-${conversion.keyword_clicked}`;
+            return !existingConversionsMap[key];
+        });
+        
+        // Inserts the rest
+        if (newConversions.length > 0) {
+
+            for (const insertConversion of newConversions) {
+                
+                const insertResult = await this.mongoRepository.create(insertConversion).catch(error => {
+                    ConversionReporterLogger.error(`Conversion Reporter: Inserting for ${insertConversion.session_id} and keyword ${insertConversion.keyword_clicked} failed: ${error.message}`);
+                });
+                
+                console.log("Insert result: ");
+                console.log(insertResult);
+
+                ConversionReporterLogger.info(`Conversion Reporter: Inserting for ${insertConversion.session_id}-${insertConversion.keyword_clicked} finished`);
+            }
+        } else {
+            ConversionReporterLogger.info('Conversion Reporter: No new conversions to store in MongoDB');
+        }
+
+        // End the connection
+        this.mongoRepository.endConnection();
+    }
+
+    /**
+     * Deletes a conversion from MongoDB.
+     * @param {Array} conversions - Array of conversion objects to delete
+     */
+    async deleteFromMongoDB(conversions) {
+        ConversionReporterLogger.info('Conversion Reporter: Deleting report conversions from MongoDB');
+        
+        // Add connection management since ?async connections bad?
+        this.mongoRepository.initConnection();
+
+        // Main loop
+        for(const conversion of conversions){
+            
+            const deleteResult = await this.mongoRepository.delete(conversion).catch(error => {
+                ConversionReporterLogger.error(`Conversion Reporter: Deleting for tuple (${conversion.session_id}, ${conversion.keyword_clicked}) failed: ${error.message}`);
+            });
+            
+        }
+
+        // End the connection
+        this.mongoRepository.endConnection();
+
+        ConversionReporterLogger.info('Conversion Reporter: Deletion process finished');
+
     }
 
     /**

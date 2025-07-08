@@ -1,6 +1,6 @@
-AWS_REGION ?= us-east-1
-AWS_ACCOUNT_ID ?= 033156084586
-AWS_PROFILE ?= new-efflux
+AWS_REGION ?=
+AWS_ACCOUNT_ID ?=
+AWS_PROFILE ?=
 
 STACK_NAME ?= efflux-conversions-reporting-solution
 
@@ -14,7 +14,7 @@ deploy-prod:
 		--profile $(AWS_PROFILE) \
 		--capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM  \
 		--parameter-overrides \
-			OperatorEmail=deni@roi.ad \
+			OperatorEmail=example@gmail.com \
 		--tags project=efflux 
 
 destroy-stack:
