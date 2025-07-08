@@ -242,6 +242,14 @@ TRIGGER_CONVERSION_REPORTS_QUEUE_URL=<sqs-trigger-queue-url>
 REPORT_CONVERSIONS_QUEUE_URL=<sqs-report-queue-url>
 ```
 
+#### **AWS Deployment Variables**
+*Required for deployment via the Makefile:*
+```env
+AWS_REGION=<your-aws-region>
+AWS_ACCOUNT_ID=<your-aws-account-id>
+AWS_PROFILE=<your-aws-profile-name>
+```
+
 #### **Database Connections**
 ```env
 MONGODB_URI_TEST=<mongodb-connection-string>
