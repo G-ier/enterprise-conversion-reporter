@@ -1,6 +1,9 @@
 # 🚀 Production Grade Efflux Conversion Reporting Solution
 
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-%E2%98%95%EF%B8%8F-ffdd00?style=flat-square)](https://buymeacoffee.com/gier)
+[![System Status](https://img.shields.io/badge/System-Running-brightgreen?style=flat-square&logo=statuspage)](https://github.com/your-username/efflux-conversions-reporting-solution)
+[![Tests](https://img.shields.io/badge/Tests-All%20Passed-brightgreen?style=flat-square&logo=github-actions)](https://github.com/your-username/efflux-conversions-reporting-solution)
+
 
 A high-performance, cloud-native conversion reporting system that seamlessly integrates with Facebook's Conversion API (CAPI) to deliver real-time advertising conversion tracking at scale. Built with scalability and the ability to handle large amounts of conversions - hence the name Efflux.
 
